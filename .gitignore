@@ -1,0 +1,34 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Android
+android/local.properties
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+*.jks
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# Generated (optional - expense.g.dart is committed)
+# *.g.dart
+
+# Hive
+*.hive
+*.lock
