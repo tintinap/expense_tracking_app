@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import '../core/constants.dart';
 import '../data/hive/hive_service.dart';
@@ -8,6 +9,10 @@ import '../data/models/expense.dart';
 import '../services/exchange_rate_service.dart';
 
 class ExpenseProvider extends ChangeNotifier {
+  ExpenseProvider() {
+    _box.listenable().addListener(notifyListeners);
+  }
+
   Box<Expense> get _box => HiveService.expensesBox;
 
   List<Expense> get expenses =>
@@ -23,31 +28,37 @@ class ExpenseProvider extends ChangeNotifier {
         .toList();
   }
 
-  void addExpense(Expense expense) {
-    _box.add(expense);
+  Future<void> addExpense(Expense expense) async {
+    await _box.add(expense);
     notifyListeners();
   }
 
-  void updateExpense(Expense existingExpense, Expense updatedExpense) {
+  Future<void> addExpenses(Iterable<Expense> expenses) async {
+    await _box.addAll(expenses);
+    notifyListeners();
+  }
+
+  Future<void> updateExpense(
+      Expense existingExpense, Expense updatedExpense) async {
     final key = existingExpense.key;
     if (key != null) {
-      _box.put(key, updatedExpense);
+      await _box.put(key, updatedExpense);
       notifyListeners();
     }
   }
 
-  void deleteExpense(Expense expense) {
-    expense.delete();
+  Future<void> deleteExpense(Expense expense) async {
+    await expense.delete();
     notifyListeners();
   }
 
-  void deleteExpenseByKey(dynamic key) {
-    _box.delete(key);
+  Future<void> deleteExpenseByKey(dynamic key) async {
+    await _box.delete(key);
     notifyListeners();
   }
 
-  void clearAll() {
-    _box.clear();
+  Future<void> clearAll() async {
+    await _box.clear();
     notifyListeners();
   }
 

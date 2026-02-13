@@ -57,7 +57,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           displayCurrency.code,
                         ),
                         builder: (context, totalSnap) {
-                          if (!totalSnap.hasData) return const SizedBox.shrink();
+                          if (!totalSnap.hasData)
+                            return const SizedBox.shrink();
                           final total = totalSnap.data!;
                           return Padding(
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -65,16 +66,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               child: Padding(
                                 padding: const EdgeInsets.all(16),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       'Net Total (${displayCurrency.code})',
-                                      style: Theme.of(context).textTheme.titleMedium,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium,
                                     ),
                                     Text(
                                       displayCurrency.formatSigned(total),
-                                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                            color: total >= 0 ? Colors.green : Colors.red,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            color: total >= 0
+                                                ? Colors.green
+                                                : Colors.red,
                                             fontWeight: FontWeight.bold,
                                           ),
                                     ),
@@ -132,7 +141,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  void _confirmDelete(BuildContext context, ExpenseProvider provider, Expense e) {
+  void _confirmDelete(
+      BuildContext context, ExpenseProvider provider, Expense e) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -146,9 +156,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
-              provider.deleteExpense(e);
-              Navigator.of(ctx).pop();
+            onPressed: () async {
+              await provider.deleteExpense(e);
+              if (ctx.mounted) Navigator.of(ctx).pop();
             },
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,

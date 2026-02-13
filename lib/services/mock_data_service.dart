@@ -13,10 +13,13 @@ class MockDataService {
 
   /// Generates mock data from Jan 1 of [year] up to today in AUD.
   /// Populates the provider directly. Returns the number of entries added.
-  static int generateYearOfData(ExpenseProvider provider, {int? year}) {
+  static Future<int> generateYearOfData(ExpenseProvider provider,
+      {int? year}) async {
     final now = DateTime.now();
     year ??= now.year;
-    provider.clearAll();
+    await provider.clearAll();
+
+    final expenses = <Expense>[];
     int count = 0;
 
     final maxMonth = year == now.year ? now.month : 12;
@@ -29,7 +32,7 @@ class MockDataService {
 
       // ── Recurring monthly expenses ──
       // Rent: 1st of every month
-      _add(provider,
+      _add(expenses,
           amount: 760,
           date: DateTime(year, month, 1),
           category: Category.rent,
@@ -38,7 +41,7 @@ class MockDataService {
       count++;
 
       // Gym: 1st of every month
-      _add(provider,
+      _add(expenses,
           amount: 40 + _rng.nextDouble() * 10,
           date: DateTime(year, month, 1),
           category: Category.health,
@@ -48,7 +51,7 @@ class MockDataService {
 
       // Phone bill: 15th of every month
       if (maxDay >= 15) {
-        _add(provider,
+        _add(expenses,
             amount: 30 + _rng.nextDouble() * 15,
             date: DateTime(year, month, 15),
             category: Category.bills,
@@ -59,7 +62,7 @@ class MockDataService {
 
       // Internet: 20th of every month
       if (maxDay >= 20) {
-        _add(provider,
+        _add(expenses,
             amount: 55 + _rng.nextDouble() * 10,
             date: DateTime(year, month, 20),
             category: Category.bills,
@@ -72,7 +75,7 @@ class MockDataService {
       // Part-time pay: 7th and 21st
       for (final payDay in [7, 21]) {
         if (payDay <= maxDay) {
-          _add(provider,
+          _add(expenses,
               amount: 450 + _rng.nextDouble() * 200,
               date: DateTime(year, month, payDay),
               category: Category.income,
@@ -85,7 +88,7 @@ class MockDataService {
 
       // Money from parents (every 2nd month)
       if (month % 2 == 0) {
-        _add(provider,
+        _add(expenses,
             amount: 200 + _rng.nextDouble() * 100,
             date: DateTime(year, month, 5),
             category: Category.income,
@@ -99,7 +102,7 @@ class MockDataService {
       final uberDays = _rng.nextInt(3) + 3;
       for (var i = 0; i < uberDays; i++) {
         final day = _rng.nextInt(maxDay) + 1;
-        _add(provider,
+        _add(expenses,
             amount: 35 + _rng.nextDouble() * 45,
             date: DateTime(year, month, day),
             category: Category.income,
@@ -130,7 +133,7 @@ class MockDataService {
             'Noodles',
             'Burger',
           ];
-          _add(provider,
+          _add(expenses,
               amount: 5 + _rng.nextDouble() * 25,
               date: DateTime(year, month, day),
               category: Category.food,
@@ -154,7 +157,7 @@ class MockDataService {
           'Petrol',
           'Parking',
         ];
-        _add(provider,
+        _add(expenses,
             amount: 3 + _rng.nextDouble() * 20,
             date: DateTime(year, month, day),
             category: Category.transport,
@@ -180,7 +183,7 @@ class MockDataService {
           'Museum',
           'Art gallery',
         ];
-        _add(provider,
+        _add(expenses,
             amount: 10 + _rng.nextDouble() * 50,
             date: DateTime(year, month, day),
             category: Category.entertainment,
@@ -204,7 +207,7 @@ class MockDataService {
           'Books',
           'Shoes',
         ];
-        _add(provider,
+        _add(expenses,
             amount: 15 + _rng.nextDouble() * 85,
             date: DateTime(year, month, day),
             category: Category.shopping,
@@ -225,7 +228,7 @@ class MockDataService {
           'Physiotherapy',
           'Eye check',
         ];
-        _add(provider,
+        _add(expenses,
             amount: 20 + _rng.nextDouble() * 80,
             date: DateTime(year, month, day),
             category: Category.health,
@@ -248,7 +251,7 @@ class MockDataService {
           'Postage',
           'App subscription',
         ];
-        _add(provider,
+        _add(expenses,
             amount: 5 + _rng.nextDouble() * 40,
             date: DateTime(year, month, day),
             category: Category.other,
@@ -273,7 +276,7 @@ class MockDataService {
             'Pad Kra Pao',
             'Thai tea',
           ];
-          _add(provider,
+          _add(expenses,
               amount: 100 + _rng.nextDouble() * 500,
               date: DateTime(year, month, day),
               category: Category.food,
@@ -285,46 +288,47 @@ class MockDataService {
     }
 
     // ── One-off large expenses ──
-    _addIfPast(provider, now,
+    _addIfPast(expenses, now,
         amount: 1520,
         date: DateTime(year, 1, 5),
         category: Category.rent,
         note: 'Rent Bond + reserving',
         currency: 'AUD');
 
-    _addIfPast(provider, now,
+    _addIfPast(expenses, now,
         amount: 350,
         date: DateTime(year, 2, 10),
         category: Category.transport,
         note: 'E-bike purchase',
         currency: 'AUD');
 
-    _addIfPast(provider, now,
+    _addIfPast(expenses, now,
         amount: 65,
         date: DateTime(year, 3, 1),
         category: Category.bills,
         note: 'Criminal checks for Uber registration',
         currency: 'AUD');
 
-    _addIfPast(provider, now,
+    _addIfPast(expenses, now,
         amount: 320,
         date: DateTime(year, 7, 15),
         category: Category.bills,
         note: 'SSAF Fee',
         currency: 'AUD');
 
-    _addIfPast(provider, now,
+    _addIfPast(expenses, now,
         amount: 200,
         date: DateTime(year, 7, 1),
         category: Category.rent,
         note: 'Yura mudang Bond',
         currency: 'AUD');
 
+    await provider.addExpenses(expenses);
     return count;
   }
 
   static void _add(
-    ExpenseProvider provider, {
+    List<Expense> expenses, {
     required double amount,
     required DateTime date,
     required Category category,
@@ -332,7 +336,7 @@ class MockDataService {
     required String currency,
     bool isIncome = false,
   }) {
-    provider.addExpense(Expense(
+    expenses.add(Expense(
       id: _uuid.v4(),
       amount: double.parse(amount.toStringAsFixed(2)),
       date: date,
@@ -344,7 +348,7 @@ class MockDataService {
   }
 
   static void _addIfPast(
-    ExpenseProvider provider,
+    List<Expense> expenses,
     DateTime now, {
     required double amount,
     required DateTime date,
@@ -353,7 +357,7 @@ class MockDataService {
     required String currency,
   }) {
     if (date.isBefore(now) || date.isAtSameMomentAs(now)) {
-      _add(provider,
+      _add(expenses,
           amount: amount,
           date: date,
           category: category,

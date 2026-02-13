@@ -22,7 +22,8 @@ class ImportService {
     );
 
     if (result == null || result.files.isEmpty) {
-      return ImportResult(success: false, imported: 0, message: 'No file selected');
+      return ImportResult(
+          success: false, imported: 0, message: 'No file selected');
     }
 
     final file = result.files.single;
@@ -44,7 +45,8 @@ class ImportService {
         return ImportResult(
           success: false,
           imported: 0,
-          message: 'No data found in file. Expected "Raw Data" sheet with headers: Date, Category, Amount, Note',
+          message:
+              'No data found in file. Expected "Raw Data" sheet with headers: Date, Category, Amount, Note',
         );
       }
 
@@ -101,12 +103,14 @@ class ImportService {
           } else if (amountCell is IntCellValue) {
             amount = amountCell.value.toDouble();
           } else if (amountCell is TextCellValue) {
-            amount = double.tryParse(_cellValueToString(amountCell).replaceAll(',', ''));
+            amount = double.tryParse(
+                _cellValueToString(amountCell).replaceAll(',', ''));
           }
         }
 
         final category = _parseCategory(categoryCell);
-        final noteStr = noteCell is TextCellValue ? _cellValueToString(noteCell) : null;
+        final noteStr =
+            noteCell is TextCellValue ? _cellValueToString(noteCell) : null;
         final note = noteStr != null && noteStr.isNotEmpty ? noteStr : null;
 
         if (date != null && amount != null && amount != 0) {
@@ -127,16 +131,15 @@ class ImportService {
         return ImportResult(
           success: false,
           imported: 0,
-          message: 'No valid expense rows found. Check Date and Amount columns.',
+          message:
+              'No valid expense rows found. Check Date and Amount columns.',
         );
       }
 
       if (!merge) {
-        provider.clearAll();
+        await provider.clearAll();
       }
-      for (final e in expenses) {
-        provider.addExpense(e);
-      }
+      await provider.addExpenses(expenses);
 
       return ImportResult(
         success: true,
@@ -165,10 +168,36 @@ class ImportService {
     if (str.isEmpty) return null;
     // Validate against supported currencies (Frankfurter)
     const supported = [
-      'USD', 'EUR', 'GBP', 'JPY', 'THB', 'CNY', 'AUD', 'CAD', 'CHF',
-      'INR', 'SGD', 'KRW', 'BRL', 'CZK', 'DKK', 'HKD', 'HUF', 'IDR',
-      'ILS', 'ISK', 'MXN', 'MYR', 'NOK', 'NZD', 'PHP', 'PLN', 'RON',
-      'SEK', 'TRY', 'ZAR',
+      'USD',
+      'EUR',
+      'GBP',
+      'JPY',
+      'THB',
+      'CNY',
+      'AUD',
+      'CAD',
+      'CHF',
+      'INR',
+      'SGD',
+      'KRW',
+      'BRL',
+      'CZK',
+      'DKK',
+      'HKD',
+      'HUF',
+      'IDR',
+      'ILS',
+      'ISK',
+      'MXN',
+      'MYR',
+      'NOK',
+      'NZD',
+      'PHP',
+      'PLN',
+      'RON',
+      'SEK',
+      'TRY',
+      'ZAR',
     ];
     if (supported.contains(str)) return str;
     // Try matching first 3 chars for codes like "USD"

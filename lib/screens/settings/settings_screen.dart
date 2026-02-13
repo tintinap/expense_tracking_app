@@ -202,7 +202,7 @@ class SettingsScreen extends StatelessWidget {
     if (confirmed != true || !context.mounted) return;
 
     final provider = context.read<ExpenseProvider>();
-    final count = MockDataService.generateYearOfData(provider);
+    final count = await MockDataService.generateYearOfData(provider);
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

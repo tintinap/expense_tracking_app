@@ -31,9 +31,8 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final configuration = isDark
-        ? PlutoGridConfiguration.dark()
-        : const PlutoGridConfiguration();
+    final configuration =
+        isDark ? PlutoGridConfiguration.dark() : const PlutoGridConfiguration();
 
     return Scaffold(
       appBar: AppBar(
@@ -69,15 +68,21 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
                     ),
                     Expanded(
                       child: Center(
-                        child: snapshot.connectionState == ConnectionState.waiting
-                            ? const CircularProgressIndicator()
-                            : Text(
-                                'No data. Add expenses to see the spreadsheet.',
-                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
-                                textAlign: TextAlign.center,
-                              ),
+                        child:
+                            snapshot.connectionState == ConnectionState.waiting
+                                ? const CircularProgressIndicator()
+                                : Text(
+                                    'No data. Add expenses to see the spreadsheet.',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
+                                    textAlign: TextAlign.center,
+                                  ),
                       ),
                     ),
                   ],
@@ -87,39 +92,43 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
               final rows = _buildRows(spreadsheetData, periodKeys);
 
               return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: FilterTabs(
-                  selectedFilter: _filter,
-                  onFilterChanged: (f) => setState(() => _filter = f),
-                ),
-              ),
-              Expanded(
-                child: PlutoGrid(
-                  columns: columns,
-                  rows: rows,
-                  onLoaded: (event) {
-                    _stateManagers.add(event.stateManager);
-                  },
-                  onChanged: null,
-                  configuration: configuration,
-                  noRowsWidget: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        'No data. Add expenses to see the spreadsheet.',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                        textAlign: TextAlign.center,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: FilterTabs(
+                      selectedFilter: _filter,
+                      onFilterChanged: (f) => setState(() => _filter = f),
+                    ),
+                  ),
+                  Expanded(
+                    child: PlutoGrid(
+                      key: UniqueKey(),
+                      columns: columns,
+                      rows: rows,
+                      onLoaded: (event) {
+                        _stateManagers.add(event.stateManager);
+                      },
+                      onChanged: null,
+                      configuration: configuration,
+                      noRowsWidget: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            'No data. Add expenses to see the spreadsheet.',
+                            style:
+                                Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            ],
-          );
+                ],
+              );
             },
           );
         },
@@ -164,7 +173,8 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
           width: 100,
           titleTextAlign: PlutoColumnTextAlign.center,
           textAlign: PlutoColumnTextAlign.end,
-          formatter: (value) => value != null ? currency.format(value as num) : '',
+          formatter: (value) =>
+              value != null ? currency.format(value as num) : '',
         ),
       );
     }

@@ -92,7 +92,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                   flex: 2,
                   child: TextField(
                     controller: _amountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
                       labelText: 'Amount',
                       hintText: '0.00',
@@ -116,7 +117,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                               child: Text(c.code),
                             ))
                         .toList(),
-                    onChanged: (v) => setState(() => _currency = v ?? CurrencyCode.usd),
+                    onChanged: (v) =>
+                        setState(() => _currency = v ?? CurrencyCode.usd),
                   ),
                 ),
               ],
@@ -183,7 +185,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     );
   }
 
-  void _save() {
+  Future<void> _save() async {
     final amountStr = _amountController.text.trim();
     final amount = double.tryParse(amountStr);
     if (amount == null || amount <= 0) {
@@ -194,7 +196,9 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     }
 
     final provider = context.read<ExpenseProvider>();
-    final note = _noteController.text.trim().isEmpty ? null : _noteController.text.trim();
+    final note = _noteController.text.trim().isEmpty
+        ? null
+        : _noteController.text.trim();
 
     if (_isEditing && widget.expense != null) {
       final updated = widget.expense!.copyWith(
@@ -205,7 +209,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         isIncome: _isIncome,
         currencyCode: _currency.code,
       );
-      provider.updateExpense(widget.expense!, updated);
+      await provider.updateExpense(widget.expense!, updated);
     } else {
       final expense = Expense(
         id: const Uuid().v4(),
@@ -216,7 +220,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         isIncome: _isIncome,
         currencyCode: _currency.code,
       );
-      provider.addExpense(expense);
+      await provider.addExpense(expense);
     }
 
     widget.onSave?.call();
