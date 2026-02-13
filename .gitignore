@@ -32,3 +32,12 @@ ios/Flutter/Flutter.podspec
 # Hive
 *.hive
 *.lock
+
+# Misc
+.DS_Store
+.coverage
+coverage/
+*.log
+
+# Security
+**/key.properties

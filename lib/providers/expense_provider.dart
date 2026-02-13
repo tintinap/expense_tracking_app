@@ -18,8 +18,8 @@ class ExpenseProvider extends ChangeNotifier {
     final range = _getDateRange(filter, now);
     if (range == null) return expenses;
     return expenses
-        .where((e) =>
-            !e.date.isBefore(range.start) && !e.date.isAfter(range.end))
+        .where(
+            (e) => !e.date.isBefore(range.start) && !e.date.isAfter(range.end))
         .toList();
   }
 
@@ -99,8 +99,7 @@ class ExpenseProvider extends ChangeNotifier {
           amount = expense.isIncome ? converted : -converted;
         }
       }
-      result[expense.category] =
-          (result[expense.category] ?? 0) + amount;
+      result[expense.category] = (result[expense.category] ?? 0) + amount;
     }
 
     return result;
@@ -149,8 +148,7 @@ class ExpenseProvider extends ChangeNotifier {
       }
     }
 
-    final filtered = filteredExpenses(filter);
-    for (final expense in filtered) {
+    for (final expense in expenses) {
       final periodKey = _getPeriodKey(expense.date, filter);
       if (periodKey == null) continue;
 
@@ -198,8 +196,18 @@ class ExpenseProvider extends ChangeNotifier {
           if (parts.length >= 2) {
             final month = int.tryParse(parts[1]) ?? 0;
             const months = [
-              'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+              'Jan',
+              'Feb',
+              'Mar',
+              'Apr',
+              'May',
+              'Jun',
+              'Jul',
+              'Aug',
+              'Sep',
+              'Oct',
+              'Nov',
+              'Dec'
             ];
             return months[month - 1];
           }
@@ -213,8 +221,18 @@ class ExpenseProvider extends ChangeNotifier {
             final month = int.tryParse(parts[1]) ?? 1;
             final year = int.tryParse(parts[0]) ?? 2024;
             const months = [
-              'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+              'Jan',
+              'Feb',
+              'Mar',
+              'Apr',
+              'May',
+              'Jun',
+              'Jul',
+              'Aug',
+              'Sep',
+              'Oct',
+              'Nov',
+              'Dec'
             ];
             final endDay = day == 1 ? 15 : DateTime(year, month + 1, 0).day;
             return '$day-$endDay ${months[month - 1]}';

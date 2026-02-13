@@ -1,46 +1,29 @@
-import 'dart:io';
-
 import 'package:excel/excel.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../core/constants.dart';
 import '../data/models/category.dart';
 import '../data/models/expense.dart';
 import '../providers/expense_provider.dart';
+import 'export_helper_stub.dart'
+    if (dart.library.io) 'export_helper_native.dart'
+    if (dart.library.html) 'export_helper_web.dart' as helper;
 
 class ExportService {
-  static Future<String?> exportToExcel(ExpenseProvider provider) async {
-    try {
-      final excel = Excel.createExcel();
-      excel.rename('Sheet1', 'Raw Data');
-
-      _buildRawDataSheet(excel['Raw Data']!, provider.expenses);
-      _buildMatrixSheet(excel, provider);
-
-      final dir = await getApplicationDocumentsDirectory();
-      final fileName =
-          'DailySpend_${DateFormat('yMd').format(DateTime.now()).replaceAll('/', '-')}.xlsx';
-      final path = '${dir.path}/$fileName';
-
-      final fileBytes = excel.encode();
-      if (fileBytes == null) return null;
-
-      final file = File(path);
-      await file.writeAsBytes(fileBytes);
-
-      return path;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
   static Future<void> shareExport(ExpenseProvider provider) async {
-    final path = await exportToExcel(provider);
-    if (path != null) {
-      await Share.shareXFiles([XFile(path)]);
-    }
+    final excel = Excel.createExcel();
+    excel.rename('Sheet1', 'Raw Data');
+
+    _buildRawDataSheet(excel['Raw Data'], provider.expenses);
+    _buildMatrixSheet(excel, provider);
+
+    final fileBytes = excel.encode();
+    if (fileBytes == null) throw Exception('Failed to encode Excel file');
+
+    final fileName =
+        'DailySpend_${DateFormat('yMd').format(DateTime.now()).replaceAll('/', '-')}.xlsx';
+
+    await helper.saveAndShareExcel(fileBytes, fileName);
   }
 
   static void _buildRawDataSheet(Sheet sheet, List<Expense> expenses) {
@@ -68,7 +51,7 @@ class ExportService {
   }
 
   static void _buildMatrixSheet(Excel excel, ExpenseProvider provider) {
-    final filter = FilterType.monthly;
+    const filter = FilterType.monthly;
     final spreadsheetData = provider.getSpreadsheetData(filter);
     final periodKeys = provider.getPeriodKeys(filter);
     final periodLabels = provider.getPeriodLabels(filter);
@@ -81,7 +64,7 @@ class ExportService {
     }
     excel.insertRowIterables('Matrix', headerRow, 0);
 
-    final sheet = excel['Matrix']!;
+    final sheet = excel['Matrix'];
     for (final category in Category.values) {
       final row = <CellValue>[TextCellValue(category.label)];
       for (var i = 0; i < periodKeys.length; i++) {

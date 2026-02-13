@@ -6,6 +6,7 @@ import '../../providers/expense_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/export_service.dart';
 import '../../services/import_service.dart';
+import '../../services/mock_data_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -108,6 +109,14 @@ class SettingsScreen extends StatelessWidget {
             ),
             onTap: () => _exportAndShare(context),
           ),
+          ListTile(
+            leading: const Icon(Icons.auto_fix_high),
+            title: const Text('Generate Mock Data'),
+            subtitle: const Text(
+              'Fill the app with realistic sample data for the current year',
+            ),
+            onTap: () => _generateMockData(context),
+          ),
         ],
       ),
     );
@@ -165,6 +174,44 @@ class SettingsScreen extends StatelessWidget {
           SnackBar(content: Text('Export failed: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _generateMockData(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Generate Mock Data'),
+        content: const Text(
+          'This will replace ALL existing data with realistic '
+          'sample expenses and income for the current year.\n\n'
+          'Are you sure?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Generate'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final provider = context.read<ExpenseProvider>();
+    final count = MockDataService.generateYearOfData(provider);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Generated $count mock transactions for ${DateTime.now().year}'),
+          backgroundColor: Colors.green,
+        ),
+      );
     }
   }
 }
