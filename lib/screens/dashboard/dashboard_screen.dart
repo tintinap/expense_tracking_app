@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
+import '../../core/currency_helper.dart';
 import '../../data/models/expense.dart';
 import '../../providers/expense_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../widgets/category_pie_chart.dart';
 import '../../widgets/expense_list.dart';
 import '../../widgets/filter_tabs.dart';
@@ -25,9 +27,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('DailySpend'),
       ),
-      body: Consumer<ExpenseProvider>(
-        builder: (context, provider, _) {
+      body: Consumer2<ExpenseProvider, SettingsProvider>(
+        builder: (context, provider, settings, _) {
           final expenses = provider.filteredExpenses(_filter);
+          final displayCurrency = settings.currency;
           return Column(
             children: [
               Padding(
@@ -47,6 +50,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           expenses: expenses,
                           filter: _filter,
                         ),
+                      ),
+                      FutureBuilder<double>(
+                        future: provider.getConvertedTotal(
+                          _filter,
+                          displayCurrency.code,
+                        ),
+                        builder: (context, totalSnap) {
+                          if (!totalSnap.hasData) return const SizedBox.shrink();
+                          final total = totalSnap.data!;
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            child: Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Net Total (${displayCurrency.code})',
+                                      style: Theme.of(context).textTheme.titleMedium,
+                                    ),
+                                    Text(
+                                      displayCurrency.formatSigned(total),
+                                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                            color: total >= 0 ? Colors.green : Colors.red,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 24),
                       Padding(

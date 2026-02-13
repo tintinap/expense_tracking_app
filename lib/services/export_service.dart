@@ -48,6 +48,7 @@ class ExportService {
       TextCellValue('Date'),
       TextCellValue('Category'),
       TextCellValue('Amount'),
+      TextCellValue('Currency'),
       TextCellValue('Note'),
     ]);
 
@@ -60,6 +61,7 @@ class ExportService {
         ),
         TextCellValue(e.category.label),
         DoubleCellValue(e.isIncome ? e.amount : -e.amount),
+        TextCellValue(e.currencyCode),
         TextCellValue(e.note ?? ''),
       ]);
     }

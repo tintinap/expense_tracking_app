@@ -22,6 +22,8 @@ A production-ready expense tracking mobile application built with Flutter.
 
 ## Features
 
-- **Dashboard**: Filter by Weekly/Fortnightly/Monthly/Yearly, pie chart by category, transaction list
-- **Spreadsheet**: Pivot-style view with categories as rows, time periods as columns, frozen category column
-- **Settings**: Theme (System/Light/Dark), Export to Excel (Raw Data + Matrix sheets), Share
+- **Dashboard**: Filter by Weekly/Fortnightly/Monthly/Yearly, pie chart by category (converted to display currency), net total, transaction list
+- **Spreadsheet**: Pivot-style view with categories as rows, time periods as columns, frozen category column (amounts converted to display currency)
+- **Settings**: Theme (System/Light/Dark), Display Currency (USD, EUR, GBP, JPY, THB, CNY, etc.), Import/Export Excel
+- **Multi-currency**: Per-transaction currency when adding/editing; amounts converted to display currency using Frankfurter (ECB-backed rates, similar to Google Finance)
+- **Excel Import**: Supports Date | Category | Amount | Currency | Note (or 4-column format without Currency column)

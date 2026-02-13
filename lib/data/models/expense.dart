@@ -24,6 +24,9 @@ class Expense extends HiveObject {
   @HiveField(5)
   final bool isIncome;
 
+  @HiveField(6)
+  final String currencyCode;
+
   Expense({
     required this.id,
     required this.amount,
@@ -31,6 +34,7 @@ class Expense extends HiveObject {
     required this.categoryIndex,
     this.note,
     this.isIncome = false,
+    this.currencyCode = 'USD',
   });
 
   Category get category => CategoryExtension.fromIndex(categoryIndex);
@@ -42,6 +46,7 @@ class Expense extends HiveObject {
     int? categoryIndex,
     String? note,
     bool? isIncome,
+    String? currencyCode,
   }) {
     return Expense(
       id: id ?? this.id,
@@ -50,6 +55,7 @@ class Expense extends HiveObject {
       categoryIndex: categoryIndex ?? this.categoryIndex,
       note: note ?? this.note,
       isIncome: isIncome ?? this.isIncome,
+      currencyCode: currencyCode ?? this.currencyCode,
     );
   }
 }

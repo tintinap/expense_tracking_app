@@ -19,6 +19,7 @@ dependencies:
   share_plus: ^7.2.2
   uuid: ^4.3.3
   file_picker: ^8.0.0+1
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:

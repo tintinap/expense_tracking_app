@@ -5,6 +5,7 @@ import '../core/constants.dart';
 import '../data/hive/hive_service.dart';
 import '../data/models/category.dart';
 import '../data/models/expense.dart';
+import '../services/exchange_rate_service.dart';
 
 class ExpenseProvider extends ChangeNotifier {
   Box<Expense> get _box => HiveService.expensesBox;
@@ -50,6 +51,61 @@ class ExpenseProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sum of filtered expenses converted to [displayCurrency].
+  /// Income positive, expenses negative.
+  Future<double> getConvertedTotal(
+    FilterType filter,
+    String displayCurrency,
+  ) async {
+    var total = 0.0;
+    for (final expense in filteredExpenses(filter)) {
+      var amount = expense.isIncome ? expense.amount : -expense.amount;
+      if (expense.currencyCode != displayCurrency) {
+        final converted = await ExchangeRateService.convert(
+          amount: amount.abs(),
+          fromCurrency: expense.currencyCode,
+          toCurrency: displayCurrency,
+          date: expense.date,
+        );
+        if (converted != null) {
+          amount = expense.isIncome ? converted : -converted;
+        }
+      }
+      total += amount;
+    }
+    return total;
+  }
+
+  /// Per-category totals in [displayCurrency].
+  Future<Map<Category, double>> getConvertedTotalsByCategory(
+    FilterType filter,
+    String displayCurrency,
+  ) async {
+    final result = <Category, double>{};
+    for (final category in Category.values) {
+      result[category] = 0.0;
+    }
+
+    for (final expense in filteredExpenses(filter)) {
+      var amount = expense.isIncome ? expense.amount : -expense.amount;
+      if (expense.currencyCode != displayCurrency) {
+        final converted = await ExchangeRateService.convert(
+          amount: amount.abs(),
+          fromCurrency: expense.currencyCode,
+          toCurrency: displayCurrency,
+          date: expense.date,
+        );
+        if (converted != null) {
+          amount = expense.isIncome ? converted : -converted;
+        }
+      }
+      result[expense.category] =
+          (result[expense.category] ?? 0) + amount;
+    }
+
+    return result;
+  }
+
   Map<Category, Map<String, double>> getSpreadsheetData(FilterType filter) {
     final result = <Category, Map<String, double>>{};
     for (final category in Category.values) {
@@ -69,6 +125,49 @@ class ExpenseProvider extends ChangeNotifier {
 
       final category = expense.category;
       final value = expense.isIncome ? expense.amount : -expense.amount;
+      result[category]![periodKey] =
+          (result[category]![periodKey] ?? 0) + value;
+    }
+
+    return result;
+  }
+
+  /// Returns spreadsheet data with amounts converted to [displayCurrency].
+  Future<Map<Category, Map<String, double>>> getConvertedSpreadsheetData(
+    FilterType filter,
+    String displayCurrency,
+  ) async {
+    final result = <Category, Map<String, double>>{};
+    for (final category in Category.values) {
+      result[category] = {};
+    }
+
+    final periodKeys = getPeriodKeys(filter);
+    for (final key in periodKeys) {
+      for (final category in Category.values) {
+        result[category]![key] = 0.0;
+      }
+    }
+
+    final filtered = filteredExpenses(filter);
+    for (final expense in filtered) {
+      final periodKey = _getPeriodKey(expense.date, filter);
+      if (periodKey == null) continue;
+
+      var value = expense.isIncome ? expense.amount : -expense.amount;
+      if (expense.currencyCode != displayCurrency) {
+        final converted = await ExchangeRateService.convert(
+          amount: value.abs(),
+          fromCurrency: expense.currencyCode,
+          toCurrency: displayCurrency,
+          date: expense.date,
+        );
+        if (converted != null) {
+          value = expense.isIncome ? converted : -converted;
+        }
+      }
+
+      final category = expense.category;
       result[category]![periodKey] =
           (result[category]![periodKey] ?? 0) + value;
     }

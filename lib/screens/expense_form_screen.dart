@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
-import '../core/constants.dart';
 import '../core/currency_helper.dart';
 import '../providers/settings_provider.dart';
 import '../data/models/category.dart';
@@ -29,6 +28,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   late Category _category;
   late DateTime _date;
   late bool _isIncome;
+  late CurrencyCode _currency;
 
   bool get _isEditing => widget.expense != null;
 
@@ -42,12 +42,14 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       _category = e.category;
       _date = e.date;
       _isIncome = e.isIncome;
+      _currency = CurrencyCode.fromCode(e.currencyCode) ?? CurrencyCode.usd;
     } else {
       _amountController = TextEditingController();
       _noteController = TextEditingController();
       _category = Category.food;
       _date = DateTime.now();
       _isIncome = false;
+      _currency = context.read<SettingsProvider>().currency;
     }
   }
 
@@ -83,18 +85,41 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               onChanged: (v) => setState(() => _isIncome = v),
             ),
             const SizedBox(height: 16),
-            Consumer<SettingsProvider>(
-              builder: (context, settings, _) => TextField(
-                controller: _amountController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: 'Amount',
-                  hintText: '0.00',
-                  border: const OutlineInputBorder(),
-                  prefixText: '${settings.currency.symbol} ',
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: _amountController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Amount',
+                      hintText: '0.00',
+                      border: const OutlineInputBorder(),
+                      prefixText: '${_currency.symbol} ',
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
                 ),
-                onChanged: (_) => setState(() {}),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<CurrencyCode>(
+                    value: _currency,
+                    decoration: const InputDecoration(
+                      labelText: 'Currency',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: CurrencyCode.values
+                        .map((c) => DropdownMenuItem(
+                              value: c,
+                              child: Text(c.code),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setState(() => _currency = v ?? CurrencyCode.usd),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<Category>(
@@ -178,6 +203,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         categoryIndex: _category.index,
         note: note,
         isIncome: _isIncome,
+        currencyCode: _currency.code,
       );
       provider.updateExpense(widget.expense!, updated);
     } else {
@@ -188,6 +214,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         categoryIndex: _category.index,
         note: note,
         isIncome: _isIncome,
+        currencyCode: _currency.code,
       );
       provider.addExpense(expense);
     }

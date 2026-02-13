@@ -6,7 +6,6 @@ import '../core/constants.dart';
 import '../core/currency_helper.dart';
 import '../data/models/category.dart';
 import '../data/models/expense.dart';
-import '../providers/settings_provider.dart';
 import '../providers/expense_provider.dart';
 
 class ExpenseList extends StatelessWidget {
@@ -98,7 +97,7 @@ class _ExpenseTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final amount = expense.isIncome ? expense.amount : -expense.amount;
     final isPositive = amount >= 0;
-    final currency = context.watch<SettingsProvider>().currency;
+    final formatted = CurrencyCode.formatSignedInCurrency(amount, expense.currencyCode);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -115,7 +114,7 @@ class _ExpenseTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              currency.formatSigned(amount),
+              formatted,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: isPositive ? Colors.green : Colors.red,
                     fontWeight: FontWeight.w600,

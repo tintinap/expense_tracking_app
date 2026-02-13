@@ -23,13 +23,14 @@ class ExpenseAdapter extends TypeAdapter<Expense> {
       categoryIndex: fields[3] as int,
       note: fields[4] as String?,
       isIncome: fields[5] as bool,
+      currencyCode: (fields[6] as String?) ?? 'USD',
     );
   }
 
   @override
   void write(BinaryWriter writer, Expense obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -41,7 +42,9 @@ class ExpenseAdapter extends TypeAdapter<Expense> {
       ..writeByte(4)
       ..write(obj.note)
       ..writeByte(5)
-      ..write(obj.isIncome);
+      ..write(obj.isIncome)
+      ..writeByte(6)
+      ..write(obj.currencyCode);
   }
 
   @override

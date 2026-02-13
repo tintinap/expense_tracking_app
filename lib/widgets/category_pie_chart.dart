@@ -21,7 +21,29 @@ class CategoryPieChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final data = _aggregateByCategory();
+    final displayCurrency = context.watch<SettingsProvider>().currency.code;
+    return FutureBuilder<Map<Category, double>>(
+      future: context.read<ExpenseProvider>().getConvertedTotalsByCategory(
+            filter,
+            displayCurrency,
+          ),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return SizedBox(
+            height: 200,
+            child: Center(
+              child: snapshot.connectionState == ConnectionState.waiting
+                  ? const CircularProgressIndicator()
+                  : Text(
+                      'No data for the selected period',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+            ),
+          );
+        }
+        final data = snapshot.data!;
     if (data.isEmpty) {
       return SizedBox(
         height: 200,
@@ -104,17 +126,7 @@ class CategoryPieChart extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  Map<Category, double> _aggregateByCategory() {
-    final result = <Category, double>{};
-    for (final cat in Category.values) {
-      result[cat] = 0;
-    }
-    for (final expense in expenses) {
-      result[expense.category] =
-          (result[expense.category] ?? 0) + expense.amount;
-    }
-    return result;
+      },
+    );
   }
 }

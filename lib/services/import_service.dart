@@ -8,7 +8,8 @@ import '../providers/expense_provider.dart';
 
 class ImportService {
   /// Picks an Excel file and imports expenses from the "Raw Data" sheet.
-  /// Expected columns: Date | Category | Amount | Note
+  /// Expected columns: Date | Category | Amount | [Currency] | Note
+  /// Currency column is optional (defaults to USD if missing).
   /// Amount: positive = income, negative = expense
   static Future<ImportResult> importFromExcel(
     ExpenseProvider provider, {
@@ -50,6 +51,8 @@ class ImportService {
       final expenses = <Expense>[];
       final dateFormat = RegExp(r'(\d{4})-(\d{1,2})-(\d{1,2})');
 
+      // Format A: Date | Category | Amount | Note (4 cols)
+      // Format B: Date | Category | Amount | Currency | Note (5 cols)
       for (var rowIndex = 1; rowIndex < sheet.maxRows; rowIndex++) {
         final row = sheet.row(rowIndex);
         if (row.isEmpty) continue;
@@ -57,7 +60,16 @@ class ImportService {
         final dateCell = row.isNotEmpty ? row[0]?.value : null;
         final categoryCell = row.length > 1 ? row[1]?.value : null;
         final amountCell = row.length > 2 ? row[2]?.value : null;
-        final noteCell = row.length > 3 ? row[3]?.value : null;
+        String? currencyCode;
+        dynamic noteCell;
+        if (row.length >= 5) {
+          final currencyCell = row[3]?.value;
+          currencyCode = _parseCurrency(currencyCell) ?? 'USD';
+          noteCell = row.length > 4 ? row[4]?.value : null;
+        } else {
+          noteCell = row.length > 3 ? row[3]?.value : null;
+          currencyCode = 'USD';
+        }
 
         DateTime? date;
         if (dateCell != null) {
@@ -106,6 +118,7 @@ class ImportService {
             categoryIndex: category.index,
             note: note,
             isIncome: isIncome,
+            currencyCode: currencyCode,
           ));
         }
       }
@@ -142,6 +155,27 @@ class ImportService {
   static String _cellValueToString(TextCellValue cell) {
     final span = cell.value;
     return span.text ?? span.toString();
+  }
+
+  static String? _parseCurrency(dynamic cell) {
+    if (cell == null) return null;
+    final str = cell is TextCellValue
+        ? _cellValueToString(cell).trim().toUpperCase()
+        : cell.toString().trim().toUpperCase();
+    if (str.isEmpty) return null;
+    // Validate against supported currencies (Frankfurter)
+    const supported = [
+      'USD', 'EUR', 'GBP', 'JPY', 'THB', 'CNY', 'AUD', 'CAD', 'CHF',
+      'INR', 'SGD', 'KRW', 'BRL', 'CZK', 'DKK', 'HKD', 'HUF', 'IDR',
+      'ILS', 'ISK', 'MXN', 'MYR', 'NOK', 'NZD', 'PHP', 'PLN', 'RON',
+      'SEK', 'TRY', 'ZAR',
+    ];
+    if (supported.contains(str)) return str;
+    // Try matching first 3 chars for codes like "USD"
+    if (str.length >= 3 && supported.contains(str.substring(0, 3))) {
+      return str.substring(0, 3);
+    }
+    return null;
   }
 
   static Category _parseCategory(dynamic cell) {

@@ -39,22 +39,54 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
       appBar: AppBar(
         title: const Text('Spreadsheet View'),
       ),
-      body: Consumer<ExpenseProvider>(
-        builder: (context, provider, _) {
-          final spreadsheetData = provider.getSpreadsheetData(_filter);
+      body: Consumer2<ExpenseProvider, SettingsProvider>(
+        builder: (context, provider, settings, _) {
           final periodKeys = provider.getPeriodKeys(_filter);
           final periodLabels = provider.getPeriodLabels(_filter);
-
-          final currency = context.watch<SettingsProvider>().currency;
+          final currency = settings.currency;
           final columns = _buildColumns(
             context,
             periodKeys,
             periodLabels,
             currency,
           );
-          final rows = _buildRows(spreadsheetData, periodKeys);
 
-          return Column(
+          return FutureBuilder<Map<Category, Map<String, double>>>(
+            future: provider.getConvertedSpreadsheetData(
+              _filter,
+              currency.code,
+            ),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: FilterTabs(
+                        selectedFilter: _filter,
+                        onFilterChanged: (f) => setState(() => _filter = f),
+                      ),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: snapshot.connectionState == ConnectionState.waiting
+                            ? const CircularProgressIndicator()
+                            : Text(
+                                'No data. Add expenses to see the spreadsheet.',
+                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                textAlign: TextAlign.center,
+                              ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+              final spreadsheetData = snapshot.data!;
+              final rows = _buildRows(spreadsheetData, periodKeys);
+
+              return Column(
             children: [
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -87,6 +119,8 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
                 ),
               ),
             ],
+          );
+            },
           );
         },
       ),
