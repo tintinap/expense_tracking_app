@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../../core/network/dio_client.dart';
-import '../../auth/providers/auth_provider.dart';
 
 class SheetsState {
   final bool isLoading;
@@ -44,9 +43,10 @@ class SheetsNotifier extends StateNotifier<SheetsState> {
     try {
       final res = await dio.get('/sheets/status');
       if (res.statusCode == 200) {
+        final connected = res.data['connected'] == true || res.data['enabled'] == true;
         state = state.copyWith(
           isLoading: false,
-          isConnected: res.data['enabled'] == true,
+          isConnected: connected,
           syncStatus: res.data['spreadsheetId'] != null ? 'Synced' : 'Not setup',
         );
       }
@@ -73,7 +73,14 @@ class SheetsNotifier extends StateNotifier<SheetsState> {
   Future<bool> disconnect() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      await dio.post('/sheets/disconnect');
+      try {
+        await dio.delete('/sheets/disconnect');
+      } on DioException catch (e) {
+        if (e.response?.statusCode != 404 && e.response?.statusCode != 405) {
+          rethrow;
+        }
+        await dio.post('/sheets/disconnect');
+      }
       state = state.copyWith(isLoading: false, isConnected: false);
       return true;
     } catch (e) {

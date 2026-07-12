@@ -13,6 +13,7 @@ import '../../features/reports/screens/reports_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/categories/screens/categories_screen.dart';
 import '../../features/transactions/widgets/transaction_bottom_sheet.dart';
+import '../../features/transactions/screens/recurring_templates_screen.dart';
 
 /// PRD §6 — go_router with ShellRoute for 4-tab bottom navigation
 final routerProvider = Provider<GoRouter>((ref) {
@@ -72,6 +73,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'categories',
             builder: (context, state) => const CategoriesScreen(),
+          ),
+          GoRoute(
+            path: 'recurring',
+            builder: (context, state) => const RecurringTemplatesScreen(),
           ),
         ],
       ),

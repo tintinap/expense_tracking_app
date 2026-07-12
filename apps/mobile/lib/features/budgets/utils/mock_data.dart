@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 
 import 'package:uuid/uuid.dart';
 
@@ -8,6 +9,9 @@ import '../../../core/database/database.dart';
 
 
 Future<void> clearAndMockData(AppDatabase db) async {
+  if (!kDebugMode) {
+    throw StateError('Mock data seeding is available in debug mode only.');
+  }
   const uuid = Uuid();
   final random = Random();
 

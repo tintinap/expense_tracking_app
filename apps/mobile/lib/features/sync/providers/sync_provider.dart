@@ -1,13 +1,19 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'dart:convert';
-
 import '../../../core/database/database.dart';
+import '../../../core/network/dio_client.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../auth/providers/auth_provider.dart';
+
+bool shouldApplyRemoteLww(DateTime localUpdatedAt, DateTime remoteUpdatedAt) {
+  return remoteUpdatedAt.isAfter(localUpdatedAt);
+}
 
 class SyncState {
   final bool isSyncing;
@@ -44,24 +50,46 @@ final syncProvider = StateNotifierProvider<SyncNotifier, SyncState>((ref) {
 class SyncNotifier extends StateNotifier<SyncState> {
   final Ref _ref;
   Timer? _periodicTimer;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isProcessing = false;
 
   SyncNotifier(this._ref) : super(const SyncState()) {
     _init();
   }
 
-  void _init() {
-    _updatePendingCount();
+  Future<void> _init() async {
+    await _updatePendingCount();
+    await _loadLastSync();
     // Start periodic sync attempting every 30 seconds
     _periodicTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       processQueue();
+    });
+    _connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen((results) {
+      final isConnected = results.any((r) => r != ConnectivityResult.none);
+      if (isConnected) {
+        processQueue();
+      }
     });
   }
 
   @override
   void dispose() {
     _periodicTimer?.cancel();
+    _connectivitySubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadLastSync() async {
+    final db = _ref.read(databaseProvider);
+    final value = await db.getSetting('last_sync_timestamp');
+    if (value == null || value.isEmpty) {
+      return;
+    }
+    final parsed = DateTime.tryParse(value);
+    if (parsed != null) {
+      state = state.copyWith(lastSync: parsed);
+    }
   }
 
   Future<void> _updatePendingCount() async {
@@ -84,6 +112,7 @@ class SyncNotifier extends StateNotifier<SyncState> {
     state = state.copyWith(isSyncing: true, lastError: null);
 
     final db = _ref.read(databaseProvider);
+    final dio = _ref.read(dioProvider);
 
     try {
       // 1. Get pending queue items ordered by createdAt ascending
@@ -92,43 +121,234 @@ class SyncNotifier extends StateNotifier<SyncState> {
             ..orderBy([(q) => drift.OrderingTerm.asc(q.createdAt)]))
           .get();
 
-      for (final item in pendingItems) {
+      if (pendingItems.isNotEmpty) {
         try {
-          // PRD §15 — Push records to backend
-          // Mock Network call
-          await Future.delayed(const Duration(milliseconds: 200));
+          final response = await dio.post(
+            '/sync/push',
+            data: {
+              'records': pendingItems
+                  .map(
+                    (item) => {
+                      'recordType': item.recordType,
+                      'recordId': item.recordId,
+                      'operation': item.operation,
+                      'payload': jsonDecode(item.payload),
+                    },
+                  )
+                  .toList(),
+              'clientTimestamp': DateTime.now().toIso8601String(),
+            },
+          );
+          final conflicts = ((response.data['conflicts'] as List?) ?? [])
+              .whereType<Map>()
+              .toList();
+          final conflictedIds = conflicts
+              .map((c) => c['recordId'] as String?)
+              .whereType<String>()
+              .toSet();
 
-          // On success, remove from queue
-          await (db.delete(db.syncQueue)
-                ..where((q) => q.id.equals(item.id)))
-              .go();
+          for (final item in pendingItems) {
+            if (!conflictedIds.contains(item.recordId)) {
+              await (db.delete(db.syncQueue)..where((q) => q.id.equals(item.id)))
+                  .go();
+              continue;
+            }
+            await (db.update(db.syncQueue)..where((q) => q.id.equals(item.id)))
+                .write(SyncQueueCompanion(
+              attempts: drift.Value(item.attempts + 1),
+              lastError: const drift.Value('Conflict from server'),
+            ));
+          }
         } catch (e) {
-          // On failure, apply exponential backoff logic mapping to attempts
-          final waitSeconds = math.pow(2, item.attempts).toInt() * 5;
-          await Future.delayed(Duration(seconds: waitSeconds));
-
-          await (db.update(db.syncQueue)
-                ..where((q) => q.id.equals(item.id)))
-              .write(SyncQueueCompanion(
-            attempts: drift.Value(item.attempts + 1),
-            lastError: drift.Value(e.toString()),
-          ));
-          rethrow; // Break inner loop on first failure to respect ordering
+          for (final item in pendingItems) {
+            final waitSeconds = math.pow(2, item.attempts).toInt() * 5;
+            await Future.delayed(Duration(seconds: waitSeconds));
+            await (db.update(db.syncQueue)..where((q) => q.id.equals(item.id)))
+                .write(SyncQueueCompanion(
+              attempts: drift.Value(item.attempts + 1),
+              lastError: drift.Value(e.toString()),
+            ));
+          }
+          rethrow;
         }
       }
 
       // 2. PRD §15 - Pull remote changes
-      // Mock fetch
-      await Future.delayed(const Duration(milliseconds: 500));
-      // Process received records (last-write-wins)
-
-      state = state.copyWith(isSyncing: false, lastSync: DateTime.now());
+      final lastSyncIso = state.lastSync?.toIso8601String() ??
+          DateTime.fromMillisecondsSinceEpoch(0).toIso8601String();
+      final pullResponse = await dio.post(
+        '/sync/pull',
+        data: {'lastSyncTimestamp': lastSyncIso},
+      );
+      final serverTimestamp = DateTime.tryParse(
+            (pullResponse.data['serverTimestamp'] as String?) ??
+                DateTime.now().toIso8601String(),
+          ) ??
+          DateTime.now();
+      await _applyPullChanges(
+        transactions: (pullResponse.data['transactions'] as List?) ?? const [],
+        categories: (pullResponse.data['categories'] as List?) ?? const [],
+        budgets: (pullResponse.data['budgets'] as List?) ?? const [],
+      );
+      await db.setSetting('last_sync_timestamp', serverTimestamp.toIso8601String());
+      state = state.copyWith(isSyncing: false, lastSync: serverTimestamp);
     } catch (e) {
       state = state.copyWith(isSyncing: false, lastError: e.toString());
     } finally {
       await _updatePendingCount();
       _isProcessing = false;
     }
+  }
+
+  Future<void> _applyPullChanges({
+    required List transactions,
+    required List categories,
+    required List budgets,
+  }) async {
+    final db = _ref.read(databaseProvider);
+    await db.transaction(() async {
+      for (final record in categories.whereType<Map>()) {
+        await _upsertCategory(db, record);
+      }
+      for (final record in budgets.whereType<Map>()) {
+        await _upsertBudget(db, record);
+      }
+      for (final record in transactions.whereType<Map>()) {
+        await _upsertTransaction(db, record);
+      }
+    });
+  }
+
+  bool _isRemoteNewer(DateTime localUpdatedAt, DateTime remoteUpdatedAt) {
+    return shouldApplyRemoteLww(localUpdatedAt, remoteUpdatedAt);
+  }
+
+  Future<void> _upsertCategory(AppDatabase db, Map record) async {
+    final id = record['id'] as String?;
+    final updatedAt = DateTime.tryParse(record['updatedAt']?.toString() ?? '');
+    if (id == null || updatedAt == null) {
+      return;
+    }
+    final local = await (db.select(db.categories)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (local != null && !_isRemoteNewer(local.updatedAt, updatedAt)) {
+      return;
+    }
+    await db.into(db.categories).insertOnConflictUpdate(CategoryData(
+          id: id,
+          name: (record['name'] as String?) ?? local?.name ?? '',
+          colourHex: (record['colourHex'] as String?) ?? local?.colourHex ?? '#9E9E9E',
+          iconCodePoint:
+              (record['iconCodePoint'] as int?) ?? local?.iconCodePoint ?? 0xe148,
+          isDefault: (record['isDefault'] as bool?) ?? local?.isDefault ?? false,
+          isHidden: (record['isHidden'] as bool?) ?? local?.isHidden ?? false,
+          sortOrder: (record['sortOrder'] as int?) ?? local?.sortOrder ?? 0,
+          parentId: record['parentId'] as String? ?? local?.parentId,
+          syncStatus: 'synced',
+          createdAt: DateTime.tryParse(record['createdAt']?.toString() ?? '') ??
+              local?.createdAt ??
+              updatedAt,
+          updatedAt: updatedAt,
+        ));
+  }
+
+  Future<void> _upsertBudget(AppDatabase db, Map record) async {
+    final id = record['id'] as String?;
+    final updatedAt = DateTime.tryParse(record['updatedAt']?.toString() ?? '');
+    if (id == null || updatedAt == null) {
+      return;
+    }
+    final local = await (db.select(db.budgets)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (local != null && !_isRemoteNewer(local.updatedAt, updatedAt)) {
+      return;
+    }
+    await db.into(db.budgets).insertOnConflictUpdate(BudgetData(
+          id: id,
+          name: record['name'] as String? ?? local?.name,
+          scopeType: (record['scopeType'] as String?) ?? local?.scopeType ?? 'all',
+          categoryIds: record['categoryIds'] as String? ?? local?.categoryIds,
+          currency: (record['currency'] as String?) ?? local?.currency ?? 'AUD',
+          amountBase: (record['amountBase'] as num?)?.toDouble() ??
+              local?.amountBase ??
+              0,
+          periodType:
+              (record['periodType'] as String?) ?? local?.periodType ?? 'monthly',
+          isRecurring:
+              (record['isRecurring'] as bool?) ?? local?.isRecurring ?? true,
+          startDate: DateTime.tryParse(record['startDate']?.toString() ?? '') ??
+              local?.startDate ??
+              updatedAt,
+          endDate: DateTime.tryParse(record['endDate']?.toString() ?? '') ??
+              local?.endDate,
+          isActive: (record['isActive'] as bool?) ?? local?.isActive ?? true,
+          notified75: (record['notified75'] as bool?) ?? local?.notified75 ?? false,
+          notified90: (record['notified90'] as bool?) ?? local?.notified90 ?? false,
+          notified100:
+              (record['notified100'] as bool?) ?? local?.notified100 ?? false,
+          syncStatus: 'synced',
+          createdAt: DateTime.tryParse(record['createdAt']?.toString() ?? '') ??
+              local?.createdAt ??
+              updatedAt,
+          updatedAt: updatedAt,
+        ));
+  }
+
+  Future<void> _upsertTransaction(AppDatabase db, Map record) async {
+    final id = record['id'] as String?;
+    final updatedAt = DateTime.tryParse(record['updatedAt']?.toString() ?? '');
+    if (id == null || updatedAt == null) {
+      return;
+    }
+    final local = await (db.select(db.transactions)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (local != null && !_isRemoteNewer(local.updatedAt, updatedAt)) {
+      return;
+    }
+    await db.into(db.transactions).insertOnConflictUpdate(TransactionData(
+          id: id,
+          transactionType:
+              (record['transactionType'] as String?) ?? local?.transactionType ?? 'expense',
+          amountBase:
+              (record['amountBase'] as num?)?.toDouble() ?? local?.amountBase ?? 0,
+          originalAmount: (record['originalAmount'] as num?)?.toDouble() ??
+              local?.originalAmount ??
+              0,
+          originalCurrency:
+              (record['originalCurrency'] as String?) ?? local?.originalCurrency ?? 'AUD',
+          exchangeRate:
+              (record['exchangeRate'] as num?)?.toDouble() ?? local?.exchangeRate ?? 1,
+          rateDate: DateTime.tryParse(record['rateDate']?.toString() ?? '') ??
+              local?.rateDate ??
+              updatedAt,
+          rateEstimated:
+              (record['rateEstimated'] as bool?) ?? local?.rateEstimated ?? false,
+          rateSource: (record['rateSource'] as String?) ??
+              local?.rateSource ??
+              'frankfurter',
+          exchangeEventId:
+              record['exchangeEventId'] as String? ?? local?.exchangeEventId,
+          categoryId: record['categoryId'] as String? ?? local?.categoryId,
+          note: record['note'] as String? ?? local?.note,
+          sourceLabel: record['sourceLabel'] as String? ?? local?.sourceLabel,
+          transactionDate:
+              DateTime.tryParse(record['transactionDate']?.toString() ?? '') ??
+                  local?.transactionDate ??
+                  updatedAt,
+          isRecurring:
+              (record['isRecurring'] as bool?) ?? local?.isRecurring ?? false,
+          recurrenceType:
+              record['recurrenceType'] as String? ?? local?.recurrenceType,
+          syncStatus: 'synced',
+          deletedAt:
+              DateTime.tryParse(record['deletedAt']?.toString() ?? '') ?? local?.deletedAt,
+          createdAt: DateTime.tryParse(record['createdAt']?.toString() ?? '') ??
+              local?.createdAt ??
+              updatedAt,
+          updatedAt: updatedAt,
+          isAggregate:
+              (record['isAggregate'] as bool?) ?? local?.isAggregate ?? false,
+        ));
   }
 
   Future<void> pushAllLocalRecords() async {
