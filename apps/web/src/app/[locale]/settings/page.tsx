@@ -3,29 +3,34 @@
 import { useState } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { request } from '@/lib/web-request';
 
 export default function SettingsPage() {
   const { logout } = useAuth();
   const [isSheetsEnabled, setIsSheetsEnabled] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [baseCurrency, setBaseCurrency] = useState('AUD');
 
   const handleExport = async () => {
     setIsExporting(true);
-    // Mock export flow hitting /export/excel
-    setTimeout(() => {
+    try {
+      await request('/export/excel');
       setIsExporting(false);
-      alert('Export downloaded successfully.');
-    }, 1500);
+      alert('Export request submitted.');
+    } catch {
+      setIsExporting(false);
+      alert('Export failed.');
+    }
   };
 
   const handleSheetsToggle = () => {
-    // Mock setup sheet flow hitting /sheets/setup
     if (!isSheetsEnabled) {
-      alert('Google Sheets integration connected!');
+      await request('/sheets/setup', { method: 'POST' });
       setIsSheetsEnabled(true);
-    } else {
-      setIsSheetsEnabled(false);
+      return;
     }
+    await request('/sheets/disconnect', { method: 'DELETE' });
+    setIsSheetsEnabled(false);
   };
 
   return (
@@ -61,7 +66,11 @@ export default function SettingsPage() {
                 <h3 className="font-medium text-gray-900">Base Currency</h3>
                 <p className="text-sm text-gray-500 mt-1">Default currency for aggregated balances and reports.</p>
               </div>
-              <select className="px-3 py-2 border border-gray-300 bg-white rounded-md text-sm font-medium text-gray-700 focus:ring-indigo-500 focus:border-indigo-500">
+              <select
+                className="px-3 py-2 border border-gray-300 bg-white rounded-md text-sm font-medium text-gray-700 focus:ring-indigo-500 focus:border-indigo-500"
+                value={baseCurrency}
+                onChange={(e) => setBaseCurrency(e.target.value)}
+              >
                 <option value="AUD">AUD ($)</option>
                 <option value="USD">USD ($)</option>
                 <option value="EUR">EUR (€)</option>

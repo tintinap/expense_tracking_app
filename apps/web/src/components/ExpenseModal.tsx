@@ -1,21 +1,58 @@
-import { useState } from 'react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useEffect, useState } from 'react';
 
-export default function ExpenseModal({ isOpen, onClose, initialData }: { isOpen: boolean, onClose: () => void, initialData?: any }) {
+type Props = {
+  isOpen: boolean;
+  onClose: () => void;
+  initialData?: any;
+  categories?: Array<{ id: string; name: string }>;
+  onSubmit: (payload: {
+    transactionType: string;
+    originalAmount: number;
+    originalCurrency: string;
+    transactionDate: string;
+    note?: string;
+    categoryId?: string | null;
+  }) => Promise<void>;
+};
+
+export default function ExpenseModal({ isOpen, onClose, initialData, categories = [], onSubmit }: Props) {
   const [formData, setFormData] = useState(initialData || {
     type: 'expense',
     amount: '',
     currency: 'AUD',
-    category: '',
+    categoryId: '',
     date: new Date().toISOString().split('T')[0],
     note: ''
   });
 
+  useEffect(() => {
+    setFormData(
+      initialData || {
+        type: 'expense',
+        amount: '',
+        currency: 'AUD',
+        categoryId: '',
+        date: new Date().toISOString().split('T')[0],
+        note: '',
+      },
+    );
+  }, [initialData, isOpen]);
+
   if (!isOpen) return null;
 
-  const handleSubmit = (e: any) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
-    // Mock save logic
-    console.log('Saved', formData);
+    const transactionType = formData.type === 'income' ? 'currency_income' : 'expense';
+    await onSubmit({
+      transactionType,
+      originalAmount: Number(formData.amount || 0),
+      originalCurrency: formData.currency,
+      transactionDate: new Date(formData.date).toISOString(),
+      note: formData.note || undefined,
+      categoryId: formData.type === 'exchange' ? null : formData.categoryId || null,
+    });
     onClose();
   };
 
@@ -85,14 +122,13 @@ export default function ExpenseModal({ isOpen, onClose, initialData }: { isOpen:
               <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
               <select 
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                value={formData.category}
-                onChange={e => setFormData({ ...formData, category: e.target.value })}
+                value={formData.categoryId}
+                onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
               >
                 <option value="">Select a category</option>
-                <option value="Food & Dining">Food & Dining</option>
-                <option value="Transport">Transport</option>
-                <option value="Utilities">Utilities</option>
-                <option value="Salary">Salary</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
+                ))}
               </select>
             </div>
           )}

@@ -12,6 +12,11 @@
   },
   "nav": {
     "dashboard": "แดชบอร์ด",
+    "transactions": "ธุรกรรม",
+    "wallets": "กระเป๋าเงิน",
+    "reports": "รายงาน",
+    "budgets": "งบประมาณ",
+    "import": "นำเข้า",
     "spreadsheet": "ตารางรายจ่าย",
     "settings": "ตั้งค่า"
   },

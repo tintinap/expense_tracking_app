@@ -1,10 +1,12 @@
 'use client';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { read, utils } from 'xlsx';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 export default function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -53,7 +55,7 @@ export default function ImportPage() {
         }));
         
         setPreview(mapped);
-      } catch (err) {
+      } catch {
         setError('Failed to parse file. Make sure it has Date, Amount, Currency, Note columns.');
       }
     };
@@ -94,10 +96,10 @@ export default function ImportPage() {
         };
       });
       
-      const token = localStorage.getItem('accessToken');
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('jwt_access_token');
       if (!token) throw new Error('You must be logged in to import');
 
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + '/transactions/bulk', {
+      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + '/import/transactions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -130,6 +132,7 @@ export default function ImportPage() {
   };
 
   return (
+    <ProtectedRoute>
     <div className="max-w-5xl mx-auto p-6 space-y-8">
       <div>
         <h1 className="text-3xl font-bold">Import Data</h1>
@@ -230,5 +233,6 @@ export default function ImportPage() {
         </div>
       )}
     </div>
+    </ProtectedRoute>
   );
 }
