@@ -148,3 +148,52 @@ expense_app/
 - **Spreadsheet**: Pivot-style view (categories × time periods)
 - **Settings**: Theme, Display Currency, Import/Export Excel
 - **Multi-currency**: Per-transaction currency, converted via Frankfurter (ECB rates)
+
+---
+
+## 📊 Implementation Progress
+
+> [!IMPORTANT]
+> **Current Usability Status:**
+> **Mobile** is the primary production path (offline-first + sync). **Backend** APIs for auth/sync/sheets/notifications are in place. **Web** now talks to the NestJS API for core pages, but browser OAuth SDK wiring and full chart/import polish still need production env credentials and UAT.
+>
+> See [remaining-tasks.md](docs/exec-plans/active/remaining-tasks.md) and PRD v5.2.0 for detailed status.
+
+### 📱 Mobile App (Flutter) — 🟡 ~95%
+* **Implemented:**
+  - [x] Core Dashboard, Transaction details, & Category breakdowns
+  - [x] Transaction bottom sheet editor with recurring toggle
+  - [x] Wallets screen with per-currency breakdown and totals
+  - [x] Background engine for generating recurring transaction instances
+  - [x] Real sync push/pull with Drift last-write-wins merge + reconnect trigger
+  - [x] FCM token register/unregister on sign-in/sign-out
+  - [x] Recurring templates management UI (pause/delete) in Settings
+  - [x] Manual balance adjustment on currency wallet detail
+* **Pending:**
+  - [ ] Device-level FCM delivery UAT with real Firebase credentials
+
+### 🖥️ Backend API (NestJS) — 🟡 ~95%
+* **Implemented:**
+  - [x] Prisma ORM and PostgreSQL migrations
+  - [x] Core Authentication structure (JWT)
+  - [x] Transactions, Categories, and Budgets REST API endpoints
+  - [x] Excel Import/Export parsers and Google Sheets background worker queue
+  - [x] Automated Frankfurter FX rate scheduler
+  - [x] Sheets status/disconnect contract aliases for clients
+  - [x] Notifications `fcm-token` register/unregister aliases
+  - [x] Sync push enqueues Sheets writes when Sheets is enabled
+* **Pending:**
+  - [ ] Google OAuth and Firebase production credentials (env-gated graceful fallback today)
+
+### 🌐 Web App (Next.js) — 🟡 ~60%
+* **Implemented:**
+  - [x] Sidebar navigation layout and multi-page routing structure
+  - [x] App router-based i18n support for English (`en`) and Thai (`th`) locales
+  - [x] Auth context calling NestJS `/auth/google`, `/auth/apple`, `/auth/refresh`
+  - [x] Dashboard / Transactions / Wallets / Budgets / Reports / Settings / Import wired to API
+  - [x] Vitest request-helper unit test stack
+* **Pending:**
+  - [ ] Browser OAuth SDK token acquisition (`@react-oauth/google` / Apple web flow)
+  - [ ] Full Recharts visualizations and PRD §25 import badge/mapping polish
+  - [ ] Production env values (`NEXT_PUBLIC_API_URL`, OAuth client IDs)
+
