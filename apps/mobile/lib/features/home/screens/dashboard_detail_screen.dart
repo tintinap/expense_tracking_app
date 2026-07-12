@@ -24,7 +24,9 @@ class _DashboardDetailScreenState extends ConsumerState<DashboardDetailScreen> {
     final viewRate = ref.watch(viewCurrencyRateProvider).valueOrNull ?? 1.0;
     final categories = ref.watch(categoryListProvider).valueOrNull ?? [];
     final expenses = ref.watch(expenseListProvider);
-    final transactions = ref.watch(transactionListProvider).valueOrNull ?? [];
+    final enabledCurrencies = ref.watch(enabledCurrenciesProvider);
+    final rawTransactions = ref.watch(transactionListProvider).valueOrNull ?? [];
+    final transactions = rawTransactions.where((t) => enabledCurrencies.contains(t.originalCurrency)).toList();
 
     // Get unique categories actively used in current period's expenses
     final activeCategoryIds = expenses
@@ -56,7 +58,7 @@ class _DashboardDetailScreenState extends ConsumerState<DashboardDetailScreen> {
                       .where((t) => t.transactionType == 'currency_income')
                       .fold(0.0, (sum, t) => sum + t.amountBase.abs());
                       
-                  final netIncome = totalIncome - totalSpent;
+                  final netBalance = totalIncome - totalSpent;
 
                   final categoryTotals = <String, double>{};
                   for (final expense in filteredExpenses) {
@@ -76,6 +78,12 @@ class _DashboardDetailScreenState extends ConsumerState<DashboardDetailScreen> {
                   
                   final topCategoryName = categories.where((c) => c.id == topCategoryId).firstOrNull?.name ?? 'None';
                   
+                  final String netBalanceTooltip = baseCurrency != viewCurrency
+                      ? 'Income: +$baseCurrency ${totalIncome.toStringAsFixed(2)} (≈ $viewCurrency ${(totalIncome * viewRate).toStringAsFixed(2)})\n'
+                          'Expenses: -$baseCurrency ${totalSpent.toStringAsFixed(2)} (≈ $viewCurrency ${(totalSpent * viewRate).toStringAsFixed(2)})'
+                      : 'Income: +$baseCurrency ${totalIncome.toStringAsFixed(2)}\n'
+                          'Expenses: -$baseCurrency ${totalSpent.toStringAsFixed(2)}';
+
                   return Column(
                     children: [
                       Row(
@@ -97,14 +105,15 @@ class _DashboardDetailScreenState extends ConsumerState<DashboardDetailScreen> {
                           Expanded(
                             child: _buildSummaryCard(
                               context, 
-                              'Net Income', 
-                              '$baseCurrency ${netIncome.toStringAsFixed(2)}', 
+                              'Net Balance', 
+                              '$baseCurrency ${netBalance.toStringAsFixed(2)}', 
                               'Total Net Flow',
                               theme.colorScheme.tertiaryContainer,
                               theme.colorScheme.onTertiaryContainer,
                               secondaryValue: baseCurrency != viewCurrency
-                                  ? '≈ $viewCurrency ${(netIncome * viewRate).toStringAsFixed(2)}'
+                                  ? '≈ $viewCurrency ${(netBalance * viewRate).toStringAsFixed(2)}'
                                   : null,
+                              tooltipMessage: netBalanceTooltip,
                             ),
                           ),
                         ],
@@ -245,9 +254,10 @@ class _DashboardDetailScreenState extends ConsumerState<DashboardDetailScreen> {
     Color textColor, {
     String? secondaryValue,
     bool isFullWidth = false,
+    String? tooltipMessage,
   }) {
     final theme = Theme.of(context);
-    return Container(
+    final card = Container(
       width: isFullWidth ? double.infinity : null,
       decoration: BoxDecoration(
         color: bgColor,
@@ -300,6 +310,25 @@ class _DashboardDetailScreenState extends ConsumerState<DashboardDetailScreen> {
         ],
       ),
     );
+
+    if (tooltipMessage != null) {
+      return Tooltip(
+        message: tooltipMessage,
+        triggerMode: TooltipTriggerMode.longPress,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.onSurface.withOpacity(0.95),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        textStyle: TextStyle(
+          color: theme.colorScheme.surface,
+          fontSize: 13,
+          height: 1.4,
+        ),
+        child: card,
+      );
+    }
+    return card;
   }
 }
 

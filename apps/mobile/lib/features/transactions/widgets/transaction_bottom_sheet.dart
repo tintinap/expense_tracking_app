@@ -12,6 +12,7 @@ import '../../budgets/providers/budget_providers.dart';
 import '../providers/exchange_rate_providers.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'currency_prefix_dropdown.dart';
+import 'interactive_time_picker.dart';
 
 enum TransactionTabType { expense, income, exchange }
 
@@ -912,19 +913,9 @@ class _TransactionBottomSheetState extends ConsumerState<TransactionBottomSheet>
                     _formatTime(context, TimeOfDay.fromDateTime(_selectedDate)),
                   ),
                   onPressed: () async {
-                    final use24h = MediaQuery.alwaysUse24HourFormatOf(context);
-                    final time = await showTimePicker(
-                      context: context,
-                      initialTime: TimeOfDay.fromDateTime(_selectedDate),
-                      initialEntryMode: TimePickerEntryMode.input,
-                      builder: (context, child) {
-                        return MediaQuery(
-                          data: MediaQuery.of(context).copyWith(
-                            alwaysUse24HourFormat: use24h,
-                          ),
-                          child: child!,
-                        );
-                      },
+                    final time = await InteractiveTimePicker.show(
+                      context,
+                      TimeOfDay.fromDateTime(_selectedDate),
                     );
                     if (time != null) {
                       setState(() {

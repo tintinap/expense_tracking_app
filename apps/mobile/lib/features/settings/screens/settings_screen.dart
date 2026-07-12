@@ -102,6 +102,13 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => _showViewCurrencyPicker(context, ref, viewCurrency),
           ),
           ListTile(
+            leading: const Icon(Icons.currency_exchange),
+            title: const Text('Calculate Together'),
+            subtitle: const Text('Combine multiple currencies in totals'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showCombineCurrenciesBottomSheet(context, ref),
+          ),
+          ListTile(
             leading: const Icon(Icons.color_lens),
             title: const Text('Theme'),
             trailing: Text(
@@ -117,6 +124,13 @@ class SettingsScreen extends ConsumerWidget {
             title: const Text('Categories'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.go('/settings/categories'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.repeat),
+            title: const Text('Manage Recurring'),
+            subtitle: const Text('Pause or delete recurring templates'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/settings/recurring'),
           ),
           ListTile(
             leading: Icon(
@@ -194,6 +208,21 @@ class SettingsScreen extends ConsumerWidget {
               }
             },
           ),
+          if (isLoggedIn &&
+              authState.authProvider == 'apple' &&
+              !sheetsState.isConnected)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Card(
+                child: ListTile(
+                  leading: Icon(Icons.info_outline),
+                  title: Text('Google Sheets needs Google permissions'),
+                  subtitle: Text(
+                    'Apple sign-in is fine for app usage. Connect Google only when enabling Sheets sync.',
+                  ),
+                ),
+              ),
+            ),
           ListTile(
             leading: const Icon(Icons.table_view),
             title: const Text('Export to Excel'),
@@ -554,5 +583,94 @@ class SettingsScreen extends ConsumerWidget {
         }
       }
     }
+  }
+
+  Future<void> _showCombineCurrenciesBottomSheet(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        return Consumer(
+          builder: (ctx, ref, child) {
+            final theme = Theme.of(ctx);
+            final baseCurrency = ref.watch(baseCurrencyProvider);
+            final enabledCurrencies = ref.watch(enabledCurrenciesProvider);
+            final countsAsync = ref.watch(transactionCountByCurrencyProvider);
+
+            return countsAsync.when(
+              data: (counts) {
+                final currencies = counts.keys.toSet().toList()..sort();
+                if (!currencies.contains(baseCurrency)) {
+                  currencies.insert(0, baseCurrency);
+                }
+
+                return SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: Row(
+                          children: [
+                            Text('Calculate Together', style: theme.textTheme.titleMedium),
+                            const Spacer(),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => Navigator.of(ctx).pop(),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                        child: Text(
+                          'Choose which currencies are combined and calculated in dashboard and report totals.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Flexible(
+                        child: ListView(
+                          shrinkWrap: true,
+                          children: currencies.map((currency) {
+                            final isBase = currency == baseCurrency;
+                            final isChecked = enabledCurrencies.contains(currency) || isBase;
+                            
+                            return CheckboxListTile(
+                              title: Text(currency),
+                              subtitle: Text(isBase ? 'Base Currency (Always Included)' : 'Include in calculations'),
+                              value: isChecked,
+                              onChanged: isBase
+                                  ? null
+                                  : (checked) {
+                                      ref
+                                          .read(enabledCurrenciesProvider.notifier)
+                                          .toggleCurrency(currency, checked == true);
+                                    },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              loading: () => const SizedBox(
+                height: 100,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (err, _) => SizedBox(
+                height: 100,
+                child: Center(child: Text('Error loading currencies: $err')),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }
