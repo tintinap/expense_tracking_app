@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SyncRepository } from './sync.repository';
 import { BudgetAlertsService } from '../budgets/budget-alerts.service';
+import { SheetsProcessor } from '../sheets/sheets.processor';
 
 @Injectable()
 export class SyncService {
@@ -9,6 +10,7 @@ export class SyncService {
   constructor(
     private readonly repository: SyncRepository,
     private readonly budgetAlerts: BudgetAlertsService,
+    private readonly sheetsProcessor: SheetsProcessor,
   ) {}
 
   /**
@@ -65,6 +67,7 @@ export class SyncService {
 
     return {
       accepted,
+      synced: accepted,
       conflicts,
       serverTimestamp: new Date().toISOString(),
     };
@@ -78,6 +81,7 @@ export class SyncService {
 
     return {
       ...data,
+      changes: data,
       serverTimestamp: new Date().toISOString(),
       conflicts: [],
     };
@@ -132,6 +136,7 @@ export class SyncService {
         if (delta !== 0) {
           await this.repository.upsertCurrencyBalance(userId, payload.originalCurrency, delta);
         }
+        await this.enqueueSheetWrite(userId, 'append', payload);
         break;
       }
 
@@ -170,6 +175,7 @@ export class SyncService {
             if (newDelta !== 0) {
               await this.repository.upsertCurrencyBalance(userId, newCurrency, newDelta);
             }
+            await this.enqueueSheetWrite(userId, 'update', payload);
           } else {
             // Server version is newer — log conflict
             await this.repository.logConflict({
@@ -193,9 +199,28 @@ export class SyncService {
           }
         }
         await this.repository.softDeleteTransaction(recordId);
+        await this.enqueueSheetWrite(userId, 'delete', { uuid: recordId });
         break;
       }
     }
+  }
+
+  private async enqueueSheetWrite(
+    userId: string,
+    operation: 'append' | 'update' | 'delete',
+    payload: any,
+  ) {
+    const user = await this.repository.getUserSheetInfo(userId);
+    if (!user?.sheetsEnabled || !user.sheetsSpreadsheetId) {
+      return;
+    }
+
+    this.sheetsProcessor.enqueue({
+      userId,
+      spreadsheetId: user.sheetsSpreadsheetId,
+      operation,
+      payload,
+    });
   }
 
   private async syncCategory(

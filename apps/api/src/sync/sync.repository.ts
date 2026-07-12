@@ -105,4 +105,11 @@ export class SyncRepository {
       update: { balance: { increment: delta } },
     });
   }
+
+  async getUserSheetInfo(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { sheetsEnabled: true, sheetsSpreadsheetId: true },
+    });
+  }
 }
