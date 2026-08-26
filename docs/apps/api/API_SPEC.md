@@ -281,7 +281,7 @@ Delete a budget.
 ## 6. Exchange Rates
 
 ### `GET /exchange-rates/latest?from={cur}&to={base}`
-Fetch today's exchange rate for a currency pair. Proxies to Frankfurter if not cached in PostgreSQL.
+Fetch today's exchange rate for a currency pair. Proxies to Frankfurter if not cached in PostgreSQL, and seamlessly falls back to `open.er-api.com` for unsupported global currencies.
 
 **Response (200 OK):**
 ```json
@@ -293,7 +293,7 @@ Fetch today's exchange rate for a currency pair. Proxies to Frankfurter if not c
 ```
 
 ### `GET /exchange-rates/{date}?from={cur}&to={base}`
-Fetch historical exchange rate for a specific date (`yyyy-MM-dd`).
+Fetch historical exchange rate for a specific date (`yyyy-MM-dd`). Proxies to Frankfurter, and falls back to `open.er-api.com` (which yields the latest rate due to free tier limitations) for unsupported currencies.
 
 ### `POST /exchange-rates`
 Cache a rate fetched directly by the mobile client. Used when the backend was unreachable at the moment of mobile transaction save.

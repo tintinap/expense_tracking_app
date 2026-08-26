@@ -44,8 +44,8 @@ class _TransactionBottomSheetState extends ConsumerState<TransactionBottomSheet>
   final _exchangeRateController = TextEditingController();
   
   DateTime _selectedDate = DateTime.now();
-  String _fromCurrency = 'AUD';
-  String _toCurrency = 'AUD';
+  late String _fromCurrency;
+  late String _toCurrency;
   /// The top-level (parent) category the user picked
   String? _selectedCategoryId;
   /// The optional sub-category within the selected parent
@@ -61,10 +61,16 @@ class _TransactionBottomSheetState extends ConsumerState<TransactionBottomSheet>
 
   bool _isRecurring = false;
   String? _recurrenceType;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
+    // Default currency to the user's base currency setting
+    final baseCurrency = ref.read(baseCurrencyProvider);
+    _fromCurrency = baseCurrency;
+    _toCurrency = baseCurrency;
+
     if (widget.initialTransaction != null) {
       final tx = widget.initialTransaction!;
       _noteController.text = tx.note ?? '';
@@ -336,6 +342,8 @@ class _TransactionBottomSheetState extends ConsumerState<TransactionBottomSheet>
   }
 
   void _save() async {
+    if (_isSaving) return;
+
     final amountText = _amountController.text;
     final amount = double.tryParse(amountText);
     if (amount == null || amount <= 0) return;
@@ -354,10 +362,13 @@ class _TransactionBottomSheetState extends ConsumerState<TransactionBottomSheet>
       return;
     }
 
-    final dao = ref.read(transactionDaoProvider);
+    setState(() => _isSaving = true);
+    try {
+      final dao = ref.read(transactionDaoProvider);
     final db = ref.read(databaseProvider);
     final balanceDao = ref.read(currencyBalanceDaoProvider);
     final baseCurrency = ref.read(baseCurrencyProvider);
+    final viewCurrency = ref.read(viewCurrencyProvider);
     final rateDao = ref.read(exchangeRateDaoProvider);
 
     final id = widget.initialTransaction?.id ?? const Uuid().v4();
@@ -390,6 +401,11 @@ class _TransactionBottomSheetState extends ConsumerState<TransactionBottomSheet>
       if (_fromCurrency != baseCurrency) {
         outExchangeRate = await rateDao.getMostRecentOrFetch(_fromCurrency, baseCurrency);
         outAmountBase = amount * outExchangeRate;
+        // Also cache originalCurrency → viewCurrency so the list tile can show
+        // a direct VND→THB estimate instead of hiding it.
+        if (viewCurrency != baseCurrency && viewCurrency != _fromCurrency) {
+          await rateDao.getMostRecentOrFetch(_fromCurrency, viewCurrency);
+        }
       }
 
       double inExchangeRate = 1.0;
@@ -397,6 +413,10 @@ class _TransactionBottomSheetState extends ConsumerState<TransactionBottomSheet>
       if (_toCurrency != baseCurrency) {
         inExchangeRate = await rateDao.getMostRecentOrFetch(_toCurrency, baseCurrency);
         inAmountBase = toAmount * inExchangeRate;
+        // Same for the in-side currency.
+        if (viewCurrency != baseCurrency && viewCurrency != _toCurrency) {
+          await rateDao.getMostRecentOrFetch(_toCurrency, viewCurrency);
+        }
       }
       
       final outSide = TransactionsCompanion.insert(
@@ -447,6 +467,12 @@ class _TransactionBottomSheetState extends ConsumerState<TransactionBottomSheet>
     if (_fromCurrency != baseCurrency) {
       exchangeRate = await rateDao.getMostRecentOrFetch(_fromCurrency, baseCurrency);
       amountBase = amount * exchangeRate;
+      // Also cache originalCurrency → viewCurrency so the list tile and
+      // detail sheet can show a direct VND→THB estimate rather than hiding
+      // it or falling back to the indirect AUD path.
+      if (viewCurrency != baseCurrency && viewCurrency != _fromCurrency) {
+        await rateDao.getMostRecentOrFetch(_fromCurrency, viewCurrency);
+      }
     }
     
     final entry = TransactionsCompanion.insert(
@@ -484,6 +510,11 @@ class _TransactionBottomSheetState extends ConsumerState<TransactionBottomSheet>
     );
 
     if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   @override
@@ -970,8 +1001,14 @@ class _TransactionBottomSheetState extends ConsumerState<TransactionBottomSheet>
 
             const SizedBox(height: 24),
             FilledButton(
-              onPressed: isExchangeInvalid ? null : _save,
-              child: const Text('Save'),
+              onPressed: (isExchangeInvalid || _isSaving) ? null : _save,
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Save'),
             ),
           ],
         ),

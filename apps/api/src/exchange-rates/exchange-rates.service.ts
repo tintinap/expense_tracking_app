@@ -51,21 +51,47 @@ export class ExchangeRatesService {
       return { rate, date: actualDate };
     } catch (error) {
       this.logger.warn(
-        `Failed to fetch rate ${from}->${to} for ${rateDate}: ${error.message}`,
+        `Frankfurter API failed for ${from}->${to} on ${rateDate}. Trying fallback to open.er-api.com...`,
       );
 
-      // Fall back to most recent cached rate for this pair
-      const fallback = await this.repository.findMostRecentByPair(from, to);
+      try {
+        const fallbackUrl = `https://open.er-api.com/v6/latest/${from}`;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
 
-      if (fallback) {
-        return {
-          rate: Number(fallback.rate),
-          date: fallback.rateDate.toISOString().split('T')[0],
-          estimated: true,
-        };
+        const response = await fetch(fallbackUrl, { signal: controller.signal });
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          throw new Error(`Open.er API returned ${response.status}`);
+        }
+
+        const data = await response.json();
+        const rate = data.rates[to];
+        const actualDate = rateDate; // fallback API doesn't support historic, so we use requested date
+
+        // Cache the rate
+        await this.repository.upsertRate(from, to, actualDate, rate, 'open-er-api');
+
+        return { rate, date: actualDate };
+      } catch (fallbackError) {
+        this.logger.warn(
+          `Fallback API also failed for ${from}->${to}: ${fallbackError.message}`,
+        );
+
+        // Fall back to most recent cached rate for this pair
+        const fallback = await this.repository.findMostRecentByPair(from, to);
+
+        if (fallback) {
+          return {
+            rate: Number(fallback.rate),
+            date: fallback.rateDate.toISOString().split('T')[0],
+            estimated: true,
+          };
+        }
+
+        throw fallbackError;
       }
-
-      throw error;
     }
   }
 

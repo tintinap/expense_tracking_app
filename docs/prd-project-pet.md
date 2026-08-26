@@ -2,8 +2,8 @@
 
 ## Project PET — Personal Expense Tracker (Monorepo)
 
-**Version:** 5.2.0
-**Last updated:** 7 July 2026
+**Version:** 5.2.1
+**Last updated:** 13 August 2026
 **Status:** Active
 
 ---
@@ -926,8 +926,8 @@ If a category referenced in `include`/`exclude` is deleted, its ID is removed fr
 | ----------- | ------------ | ------------------- | ---------------------------------------------------------- |
 | On track    | < 75% used   | Green               | None                                                       |
 | Caution     | 75–89% used | Amber               | Once: "You've used 75% of your [X] budget"                 |
-| Critical    | 90–99% used | Orange-red          | Once: "You've used 90% of your [X] budget — $Z remaining" |
-| Over budget | ≥ 100% used | Red                 | Once: "You've exceeded your [X] budget by $Y"              |
+| Critical    | 90–100% used | Light red           | Once: "You've used 90% of your [X] budget — $Z remaining" |
+| Over budget | > 100% used  | Red                 | Once: "You've exceeded your [X] budget by $Y"              |
 
 - Alerts fire **once per threshold per cycle** — `notified_75`, `notified_90`, and `notified_100` flags reset when a new period starts
 - Overspending does **not** block adding new expenses
@@ -1430,11 +1430,12 @@ Transaction list row accent colours:
 
 Budget progress colours (both themes):
 
-| State                 | Colour      |
-| --------------------- | ----------- |
-| On track (< 80%)      | `#4CAF50` |
-| Warning (80–99%)     | `#FFC107` |
-| Over budget (≥ 100%) | `#F44336` |
+| State                 | Colour              |
+| --------------------- | ------------------- |
+| On track (< 75%)      | `#4CAF50` (Green)   |
+| Warning (75–89%)     | `#FFC107` (Amber)   |
+| Critical (90–100%)   | `#FF5252` (Light red)|
+| Over budget (> 100%) | `#F44336` (Red)     |
 
 ### Acceptance criteria
 
@@ -2014,6 +2015,19 @@ Prior to v5.1.0:
 - Firebase production credentials (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`)
 - Web runtime env values (`NEXT_PUBLIC_API_URL` and OAuth values)
 
+## 28. Exchange Rate Fallback Mechanism (v5.2.1)
+
+This section documents the multi-tier exchange rate fallback strategy introduced in v5.2.1 to handle currencies unsupported by the primary Frankfurter API.
+
+1. **Problem**: The primary exchange rate provider (`api.frankfurter.app`) relies on the European Central Bank, which only tracks ~30 major currencies. When transactions were created in unsupported currencies (e.g. `VND`, `MYR`, `IDR`), the API call would fail, causing the system to silently fall back to an exchange rate of `1.0`. This led to drastically incorrect view currency estimations (e.g. 400,000 VND -> 400,000 AUD).
+2. **Solution**: Implemented a 4-tier architecture across Mobile and Backend.
+3. **Architecture Tiers**:
+    - **Tier 1 (Local DB Cache)**: The mobile app checks `ExchangeRateDao` for the most recently cached rate for the currency pair on the current date.
+    - **Tier 2 (Backend Server)**: The mobile app's `ExchangeRateRepository` queries the NestJS backend for the rate, which first checks its own Postgres cache.
+    - **Tier 3 (Frankfurter API)**: Both mobile and backend attempt to fetch from `api.frankfurter.app`.
+    - **Tier 4 (Open.er-api.com API)**: If Frankfurter fails (e.g., due to unsupported currency), the system now seamlessly falls back to `open.er-api.com/v6/latest`, a free API that natively supports 160+ global currencies, preventing the `1.0` bug.
+4. **Resiliency**: The successful fallback rate is instantly cached in both the local SQLite database and the backend Postgres database to prevent repeated fallback lookups.
+
 ---
 
-*End of document — Project PET v5.2.0 (adapted for DailySpend monorepo)*
+*End of document — Project PET v5.2.1 (adapted for DailySpend monorepo)*

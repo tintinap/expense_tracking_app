@@ -623,6 +623,59 @@ sequenceDiagram
 
 ---
 
+### `GET https://open.er-api.com/v6/latest/{baseCurrency}` (External Fallback)
+
+#### 1. Endpoint Overview
+| | |
+|---|---|
+| **API Name** | Open.er Latest Rate |
+| **Method** | `GET` |
+| **Endpoint** | `https://open.er-api.com/v6/latest/{baseCurrency}` |
+| **Description** | Tier 4 fallback exchange rate for unsupported currencies (e.g. VND, MYR) where Frankfurter fails. |
+| **Flutter Screen** | Transaction Creation |
+| **Dart Service** | `ExchangeRateDao.getMostRecentOrFetch`, `ExchangeRateRepository.getRecommendedRate` |
+
+#### 2. Sequence Diagram
+```mermaid
+sequenceDiagram
+    box LightYellow Mobile App
+    participant DAO
+    end
+    box LightGreen External API
+    participant OpenER
+    end
+
+    DAO->>+OpenER: GET /latest/VND
+    alt success
+        OpenER-->>-DAO: 200 OK { rates: { THB: 0.0014 } }
+        DAO->>DAO: Cache in local SQLite
+    else error
+        DAO-->>DAO: Return 1.0 (failsafe)
+    end
+```
+
+#### 3. Sample Request & Response
+**Response (JSON):**
+```json
+{
+  "result": "success",
+  "base_code": "VND",
+  "rates": {
+    "THB": 0.0014
+  }
+}
+```
+
+#### 4. I/O Mapping Specification
+| No. | I/O | JSON Key | Dart Type | Nullable | M/O | Format / Values | Dart Model / Field | Logic / Remarks |
+|-----|-----|----------|-----------|----------|-----|-----------------|--------------------|--------------------|
+| 1 | I | `baseCurrency` | String | No | M | Path param | | Base currency |
+| 2 | O | `result` | String | No | M | `"success"` | | |
+| 3 | O | `base_code` | String | No | M | | | |
+| 4 | O | `rates` | Map | No | M | `{ "THB": 0.0014 }` | | Parsed: `rates[quoteCurrency]` |
+
+---
+
 ## 5. Import
 
 ### `POST /import/transactions`

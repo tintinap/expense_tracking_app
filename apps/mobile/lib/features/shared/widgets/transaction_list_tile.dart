@@ -273,7 +273,7 @@ class TransactionListTile extends ConsumerWidget {
       dateKey: dateKey,
       originalAmount: tx.originalAmount.abs(),
     )));
-    final viewAmount = viewAmountAsync.valueOrNull;
+    final double? viewAmount = viewAmountAsync.valueOrNull;
 
     final titleText = display?.name ??
         (tx.note?.trim().isNotEmpty == true
@@ -399,7 +399,7 @@ class TransactionListTile extends ConsumerWidget {
       dateKey: dateKey,
       originalAmount: fromAmount.abs(),
     )));
-    final exchangeViewAmount = exchangeViewAmountAsync.valueOrNull;
+    final double? exchangeViewAmount = exchangeViewAmountAsync.valueOrNull;
 
     return Material(
       color: theme.scaffoldBackgroundColor,
