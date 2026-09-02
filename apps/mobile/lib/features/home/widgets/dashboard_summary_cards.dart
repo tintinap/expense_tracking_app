@@ -14,6 +14,12 @@ class DashboardSummaryCards extends ConsumerWidget {
     final summary = ref.watch(dashboardSummaryProvider);
     final theme = Theme.of(context);
 
+    final String netBalanceTooltip = baseCurrency != viewCurrency
+        ? 'Income: +$baseCurrency ${summary.totalIncome.toStringAsFixed(2)} (≈ $viewCurrency ${(summary.totalIncome * viewRate).toStringAsFixed(2)})\n'
+            'Expenses: -$baseCurrency ${summary.totalSpent.toStringAsFixed(2)} (≈ $viewCurrency ${(summary.totalSpent * viewRate).toStringAsFixed(2)})'
+        : 'Income: +$baseCurrency ${summary.totalIncome.toStringAsFixed(2)}\n'
+            'Expenses: -$baseCurrency ${summary.totalSpent.toStringAsFixed(2)}';
+
     return Column(
       children: [
         Row(
@@ -35,14 +41,15 @@ class DashboardSummaryCards extends ConsumerWidget {
             Expanded(
               child: _buildCard(
                 theme: theme,
-                title: 'Net Income',
-                value: '$baseCurrency ${summary.netIncome.toStringAsFixed(2)}',
+                title: 'Net Balance',
+                value: '$baseCurrency ${summary.netBalance.toStringAsFixed(2)}',
                 secondaryValue: baseCurrency != viewCurrency 
-                    ? '≈ $viewCurrency ${(summary.netIncome * viewRate).toStringAsFixed(2)}'
+                    ? '≈ $viewCurrency ${(summary.netBalance * viewRate).toStringAsFixed(2)}'
                     : null,
                 subtitle: 'Total Net Flow',
                 color: theme.colorScheme.tertiaryContainer,
                 onColor: theme.colorScheme.onTertiaryContainer,
+                tooltipMessage: netBalanceTooltip,
               ),
             ),
           ],
@@ -73,8 +80,9 @@ class DashboardSummaryCards extends ConsumerWidget {
     required Color color,
     required Color onColor,
     bool isFullWidth = false,
+    String? tooltipMessage,
   }) {
-    return Container(
+    final card = Container(
       width: isFullWidth ? double.infinity : null,
       decoration: BoxDecoration(
         color: color,
@@ -124,5 +132,24 @@ class DashboardSummaryCards extends ConsumerWidget {
         ],
       ),
     );
+
+    if (tooltipMessage != null) {
+      return Tooltip(
+        message: tooltipMessage,
+        triggerMode: TooltipTriggerMode.longPress,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.onSurface.withOpacity(0.95),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        textStyle: TextStyle(
+          color: theme.colorScheme.surface,
+          fontSize: 13,
+          height: 1.4,
+        ),
+        child: card,
+      );
+    }
+    return card;
   }
 }

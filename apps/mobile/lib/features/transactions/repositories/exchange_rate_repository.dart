@@ -131,7 +131,41 @@ class ExchangeRateRepository {
         );
       }
     } catch (_) {
-      // Both BE and Frankfurter failed
+      // Both BE and Frankfurter failed (e.g. unsupported currency like VND)
+    }
+
+    // === Tier 4: Direct open.er-api.com (ultimate fallback for unsupported currencies) ===
+    try {
+      final publicDio = Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 5),
+        receiveTimeout: const Duration(seconds: 5),
+      ));
+
+      final response = await publicDio.get('https://open.er-api.com/v6/latest/$baseCurrency');
+
+      if (response.data != null &&
+          response.data['rates'] != null &&
+          response.data['rates'][quoteCurrency] != null) {
+        final rate = (response.data['rates'][quoteCurrency] as num).toDouble();
+        final now = DateTime.now();
+        final actualDate = _formatDate(now);
+
+        // Cache to local DB
+        await _cacheLocally(
+          baseCurrency, quoteCurrency, actualDate, rate, 'open-er-api',
+        );
+
+        // Fire-and-forget: sync to BE for other devices/users
+        _trySyncToBackend(baseCurrency, quoteCurrency, actualDate, rate);
+
+        return ExchangeRateResult(
+          rate: rate,
+          date: actualDate,
+          source: 'open-er-api',
+        );
+      }
+    } catch (_) {
+      // All tiers failed
     }
 
     // All tiers failed

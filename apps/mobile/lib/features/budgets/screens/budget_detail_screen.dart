@@ -35,7 +35,7 @@ class BudgetDetailScreen extends ConsumerWidget {
     if (progress.isOverBudget) {
       progressColor = Colors.red;
     } else if (progress.isCritical) {
-      progressColor = Colors.orange;
+      progressColor = Colors.redAccent.shade100;
     } else if (progress.isWarning) {
       progressColor = Colors.amber;
     }
@@ -225,13 +225,13 @@ class BudgetDetailScreen extends ConsumerWidget {
                 final h = history[index];
                 final theme = Theme.of(context);
                 final pct = h.percentageUsed;
-                final isOver = pct >= 1.0;
+                final isOver = pct > 1.0;
 
                 Color barColor = Colors.green;
-                if (pct >= 1.0) {
+                if (pct > 1.0) {
                   barColor = Colors.red;
                 } else if (pct >= 0.90) {
-                  barColor = Colors.orange;
+                  barColor = Colors.redAccent.shade100;
                 } else if (pct >= 0.75) {
                   barColor = Colors.amber;
                 }

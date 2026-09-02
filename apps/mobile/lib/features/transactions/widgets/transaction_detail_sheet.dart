@@ -42,17 +42,52 @@ class TransactionDetailSheet extends ConsumerWidget {
     final baseCurrency = ref.watch(baseCurrencyProvider);
     final viewCurrency = ref.watch(viewCurrencyProvider);
     final viewRate = ref.watch(viewCurrencyRateProvider).valueOrNull ?? 1.0;
+    // For 3rd-currency transactions (e.g. VND when base=AUD, view=THB),
+    // prefer a direct originalCurrency→viewCurrency rate that was cached at
+    // save time. Fall back to amountBase×viewRate only when no direct rate
+    // exists (covers the case where the transaction was saved before this fix).
+    final txOriginalCurrency = transaction.originalCurrency;
+    final dateKey =
+        '${transaction.transactionDate.year.toString().padLeft(4, '0')}-'
+        '${transaction.transactionDate.month.toString().padLeft(2, '0')}-'
+        '${transaction.transactionDate.day.toString().padLeft(2, '0')}';
+    final directViewAsync = ref.watch(txViewAmountProvider((
+      fromCurrency: txOriginalCurrency,
+      toCurrency: viewCurrency,
+      dateKey: dateKey,
+      originalAmount: transaction.originalAmount.abs(),
+    )));
 
-    final showViewCurrencyEstimation = viewCurrency != baseCurrency;
+    final showViewCurrencyEstimation = viewCurrency != baseCurrency &&
+        viewCurrency != txOriginalCurrency;
     Widget? amountSecondaryWidget;
     if (showViewCurrencyEstimation) {
-      final estimatedAmount = (transaction.amountBase * viewRate).abs();
-      final rateStr = viewRate.toStringAsFixed(4)
-          .replaceAll(RegExp(r'0+$'), '')
-          .replaceAll(RegExp(r'\.$'), '');
-      
+      // Use direct rate if cached (VND→THB), otherwise fall back via base.
+      final directViewAmount = directViewAsync.valueOrNull;
+      final estimatedAmount = directViewAmount ??
+          (transaction.amountBase * viewRate).abs();
+      final bool isDirect = directViewAmount != null;
+
+      // Build a human-readable rate hint.
+      String rateHint;
+      if (isDirect && txOriginalCurrency != baseCurrency) {
+        // Show the actual direct pair rate for clarity.
+        final directRate = transaction.originalAmount.abs() > 0
+            ? estimatedAmount / transaction.originalAmount.abs()
+            : viewRate;
+        final rateStr = directRate.toStringAsFixed(4)
+            .replaceAll(RegExp(r'0+$'), '')
+            .replaceAll(RegExp(r'\.$'), '');
+        rateHint = '1 $txOriginalCurrency = $rateStr $viewCurrency';
+      } else {
+        final rateStr = viewRate.toStringAsFixed(4)
+            .replaceAll(RegExp(r'0+$'), '')
+            .replaceAll(RegExp(r'\.$'), '');
+        rateHint = '1 $baseCurrency = $rateStr $viewCurrency';
+      }
+
       amountSecondaryWidget = Text(
-        '≈ $prefix $viewCurrency ${estimatedAmount.toStringAsFixed(2)} (1 $baseCurrency = $rateStr $viewCurrency)',
+        '≈ $prefix $viewCurrency ${estimatedAmount.toStringAsFixed(2)} ($rateHint)',
         style: theme.textTheme.bodySmall?.copyWith(
           color: amountColor?.withValues(alpha: 0.7) ?? theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
         ),

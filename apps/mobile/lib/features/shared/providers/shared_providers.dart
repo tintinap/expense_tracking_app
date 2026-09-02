@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/daos/transaction_dao.dart' show CurrencyBreakdown;
@@ -156,7 +157,10 @@ final currencyBreakdownProvider =
 /// PRD §21 — Expense List Provider (Derived from transactionListProvider)
 final expenseListProvider = Provider<List<TransactionData>>((ref) {
   final transactions = ref.watch(transactionListProvider).valueOrNull ?? [];
-  return transactions.where((t) => t.transactionType == 'expense').toList();
+  final enabledCurrencies = ref.watch(enabledCurrenciesProvider);
+  return transactions
+      .where((t) => t.transactionType == 'expense' && enabledCurrencies.contains(t.originalCurrency))
+      .toList();
 });
 
 /// PRD §21 — Category List Provider (All)
@@ -250,6 +254,54 @@ class ViewCurrencyNotifier extends Notifier<String> {
 
 final viewCurrencyProvider =
     NotifierProvider<ViewCurrencyNotifier, String>(ViewCurrencyNotifier.new);
+
+class EnabledCurrenciesNotifier extends Notifier<List<String>> {
+  @override
+  List<String> build() {
+    final base = ref.watch(baseCurrencyProvider);
+    _load(base);
+    return [base];
+  }
+
+  Future<void> _load(String base) async {
+    final db = ref.read(databaseProvider);
+    final value = await db.getSetting('enabled_calculation_currencies');
+    if (value != null && value.isNotEmpty) {
+      try {
+        final list = (jsonDecode(value) as List).cast<String>();
+        if (!list.contains(base)) {
+          list.add(base);
+        }
+        state = list;
+      } catch (_) {
+        state = [base];
+      }
+    } else {
+      state = [base];
+    }
+  }
+
+  Future<void> toggleCurrency(String currency, bool enable) async {
+    final base = ref.read(baseCurrencyProvider);
+    if (currency == base && !enable) return;
+
+    final newList = List<String>.from(state);
+    if (enable) {
+      if (!newList.contains(currency)) {
+        newList.add(currency);
+      }
+    } else {
+      newList.remove(currency);
+    }
+
+    final db = ref.read(databaseProvider);
+    await db.setSetting('enabled_calculation_currencies', jsonEncode(newList));
+    state = newList;
+  }
+}
+
+final enabledCurrenciesProvider =
+    NotifierProvider<EnabledCurrenciesNotifier, List<String>>(EnabledCurrenciesNotifier.new);
 
 /// PRD §21 — View Currency Exchange Rate
 /// Provides the current exchange rate from Base Currency to View Currency
@@ -345,14 +397,16 @@ final themeModeProvider =
 /// PRD §21 — Dashboard Summary Provider
 class DashboardSummary {
   final double totalSpent;
-  final double netIncome;
+  final double totalIncome;
+  final double netBalance;
   final String topCategoryName;
   final double topCategoryAmount;
   final int transactionCount;
 
   const DashboardSummary({
     required this.totalSpent,
-    required this.netIncome,
+    required this.totalIncome,
+    required this.netBalance,
     required this.topCategoryName,
     required this.topCategoryAmount,
     required this.transactionCount,
@@ -362,18 +416,25 @@ class DashboardSummary {
 final dashboardSummaryProvider = Provider<DashboardSummary>((ref) {
   final transactions = ref.watch(transactionListProvider).valueOrNull ?? [];
   final categories = ref.watch(categoryListProvider).valueOrNull ?? [];
+  final enabledCurrencies = ref.watch(enabledCurrenciesProvider);
 
-  final expenses = transactions.where((t) => t.transactionType == 'expense').toList();
-  final incomes = transactions.where((t) => t.transactionType == 'currency_income').toList();
+  // Filter transactions by enabled currencies
+  final filteredTransactions = transactions
+      .where((t) => enabledCurrencies.contains(t.originalCurrency))
+      .toList();
+
+  final expenses = filteredTransactions.where((t) => t.transactionType == 'expense').toList();
+  final incomes = filteredTransactions.where((t) => t.transactionType == 'currency_income').toList();
   
   double totalSpent = expenses.fold(0.0, (sum, e) => sum + e.amountBase.abs());
   double totalIncome = incomes.fold(0.0, (sum, i) => sum + i.amountBase.abs());
-  double netIncome = totalIncome - totalSpent;
+  double netBalance = totalIncome - totalSpent;
 
   if (expenses.isEmpty) {
     return DashboardSummary(
       totalSpent: 0,
-      netIncome: netIncome,
+      totalIncome: totalIncome,
+      netBalance: netBalance,
       topCategoryName: 'None',
       topCategoryAmount: 0,
       transactionCount: 0,
@@ -408,7 +469,8 @@ final dashboardSummaryProvider = Provider<DashboardSummary>((ref) {
 
   return DashboardSummary(
     totalSpent: totalSpent,
-    netIncome: netIncome,
+    totalIncome: totalIncome,
+    netBalance: netBalance,
     topCategoryName: topCategoryName,
     topCategoryAmount: maxAmount,
     transactionCount: expenses.length,

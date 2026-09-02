@@ -5,6 +5,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../core/network/dio_client.dart';
 import '../../../core/providers/database_providers.dart';
+import '../services/fcm_token_service.dart';
 import '../../sync/providers/sync_provider.dart';
 
 const _storage = FlutterSecureStorage();
@@ -13,22 +14,35 @@ final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(ref);
 });
 
+final fcmTokenServiceProvider = Provider<FcmTokenService>((ref) {
+  final dio = ref.watch(dioProvider);
+  return FcmTokenService(dio);
+});
+
 class AuthState {
   final bool isAuthenticated;
   final bool isLoading;
   final String? error;
+  final String? authProvider;
 
   const AuthState({
     this.isAuthenticated = false,
     this.isLoading = false,
     this.error,
+    this.authProvider,
   });
 
-  AuthState copyWith({bool? isAuthenticated, bool? isLoading, String? error}) {
+  AuthState copyWith({
+    bool? isAuthenticated,
+    bool? isLoading,
+    String? error,
+    String? authProvider,
+  }) {
     return AuthState(
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       isLoading: isLoading ?? this.isLoading,
       error: error,
+      authProvider: authProvider ?? this.authProvider,
     );
   }
 }
@@ -81,10 +95,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _storage.write(key: 'access_token', value: data['accessToken']);
       await _storage.write(key: 'refresh_token', value: data['refreshToken']);
       
-      state = state.copyWith(isAuthenticated: true, isLoading: false);
-      
+      state = state.copyWith(
+        isAuthenticated: true,
+        isLoading: false,
+        authProvider: 'google',
+      );
+      await _ref.read(fcmTokenServiceProvider).registerCurrentToken();
       // Trigger initial sync
-      _ref.read(syncProvider.notifier).pushAllLocalRecords();
+      await _ref.read(syncProvider.notifier).pushAllLocalRecords();
     } catch (e) {
       state = state.copyWith(isLoading: false, error: 'Google sign-in failed: ${e.toString()}');
     }
@@ -118,10 +136,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _storage.write(key: 'access_token', value: data['accessToken']);
       await _storage.write(key: 'refresh_token', value: data['refreshToken']);
 
-      state = state.copyWith(isAuthenticated: true, isLoading: false);
-
+      state = state.copyWith(
+        isAuthenticated: true,
+        isLoading: false,
+        authProvider: 'apple',
+      );
+      await _ref.read(fcmTokenServiceProvider).registerCurrentToken();
       // Trigger initial sync
-      _ref.read(syncProvider.notifier).pushAllLocalRecords();
+      await _ref.read(syncProvider.notifier).pushAllLocalRecords();
     } catch (e) {
       state = state.copyWith(isLoading: false, error: 'Apple sign-in failed: ${e.toString()}');
     }
@@ -129,9 +151,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> signOut() async {
     state = state.copyWith(isLoading: true);
+    try {
+      await _ref.read(fcmTokenServiceProvider).unregisterCurrentToken();
+    } catch (_) {}
     await _storage.delete(key: 'access_token');
     await _storage.delete(key: 'refresh_token');
-    state = const AuthState(isAuthenticated: false, isLoading: false);
+    state = const AuthState(isAuthenticated: false, isLoading: false, authProvider: null);
   }
 
   Future<void> deleteAccount() async {
@@ -139,6 +164,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final dio = _ref.read(dioProvider);
       await dio.delete('/auth/account');
+      try {
+        await _ref.read(fcmTokenServiceProvider).unregisterCurrentToken();
+      } catch (_) {}
       
       // Clear local database
       final db = _ref.read(databaseProvider);
@@ -148,7 +176,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _storage.delete(key: 'access_token');
       await _storage.delete(key: 'refresh_token');
       
-      state = const AuthState(isAuthenticated: false, isLoading: false);
+      state = const AuthState(isAuthenticated: false, isLoading: false, authProvider: null);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: 'Account deletion failed: ${e.toString()}');
     }

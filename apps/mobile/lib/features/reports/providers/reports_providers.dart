@@ -102,8 +102,11 @@ final previousPeriodTransactionsProvider =
 /// Day → total spend for the selected period (expenses only, converted to view currency).
 final dailySpendAggregateProvider = Provider<Map<DateTime, double>>((ref) {
   final transactions = ref.watch(transactionListProvider).valueOrNull ?? [];
+  final enabledCurrencies = ref.watch(enabledCurrenciesProvider);
 
-  final expenses = transactions.where((t) => t.transactionType == 'expense');
+  final expenses = transactions.where((t) =>
+      t.transactionType == 'expense' &&
+      enabledCurrencies.contains(t.originalCurrency));
 
   final result = <DateTime, double>{};
   for (final tx in expenses) {
@@ -121,8 +124,11 @@ final dailySpendAggregateProvider = Provider<Map<DateTime, double>>((ref) {
 final categorySpendProvider = Provider<List<CategorySpend>>((ref) {
   final transactions = ref.watch(transactionListProvider).valueOrNull ?? [];
   final categories = ref.watch(categoryListProvider).valueOrNull ?? [];
+  final enabledCurrencies = ref.watch(enabledCurrenciesProvider);
 
-  final expenses = transactions.where((t) => t.transactionType == 'expense');
+  final expenses = transactions.where((t) =>
+      t.transactionType == 'expense' &&
+      enabledCurrencies.contains(t.originalCurrency));
 
   // Aggregate by parent category
   final totals = <String, double>{};
@@ -172,17 +178,22 @@ final trendSpendProvider = Provider<List<TrendPoint>>((ref) {
 
 /// Comparison between current and previous period spend totals.
 final periodComparisonProvider = Provider<PeriodComparison>((ref) {
+  final enabledCurrencies = ref.watch(enabledCurrenciesProvider);
 
   final currentTxs = ref.watch(transactionListProvider).valueOrNull ?? [];
   final previousTxs =
       ref.watch(previousPeriodTransactionsProvider).valueOrNull ?? [];
 
   double currentTotal = currentTxs
-      .where((t) => t.transactionType == 'expense')
+      .where((t) =>
+          t.transactionType == 'expense' &&
+          enabledCurrencies.contains(t.originalCurrency))
       .fold(0.0, (sum, t) => sum + t.amountBase.abs());
 
   double previousTotal = previousTxs
-      .where((t) => t.transactionType == 'expense')
+      .where((t) =>
+          t.transactionType == 'expense' &&
+          enabledCurrencies.contains(t.originalCurrency))
       .fold(0.0, (sum, t) => sum + t.amountBase.abs());
 
   final hasPreviousData = previousTxs.isNotEmpty;

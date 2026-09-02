@@ -12,6 +12,11 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "transactions": "Transactions",
+    "wallets": "Wallets",
+    "reports": "Reports",
+    "budgets": "Budgets",
+    "import": "Import",
     "spreadsheet": "Spreadsheet",
     "settings": "Settings"
   },

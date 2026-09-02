@@ -28,8 +28,8 @@ class BudgetProgress {
   });
   
   bool get isWarning => percentageUsed >= 0.75 && percentageUsed < 0.90;
-  bool get isCritical => percentageUsed >= 0.90 && percentageUsed < 1.0;
-  bool get isOverBudget => percentageUsed >= 1.0;
+  bool get isCritical => percentageUsed >= 0.90 && percentageUsed <= 1.0;
+  bool get isOverBudget => percentageUsed > 1.0;
 
   double get remainingAmount => (limitAmount - spentAmount).clamp(0, double.infinity);
 }

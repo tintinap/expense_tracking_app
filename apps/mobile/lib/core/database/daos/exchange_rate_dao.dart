@@ -101,7 +101,32 @@ class ExchangeRateDao extends DatabaseAccessor<AppDatabase>
         return rateValue;
       }
     } catch (_) {
-      // Silently swallow errors and return 1.0 as last resort
+      // Frankfurter failed (unsupported currency or down). Try open.er-api.com fallback
+    }
+
+    try {
+      final publicDio = Dio();
+      final res = await publicDio.get('https://open.er-api.com/v6/latest/$baseCurrency');
+
+      if (res.data != null &&
+          res.data['rates'] != null &&
+          res.data['rates'][quoteCurrency] != null) {
+        final rateValue = (res.data['rates'][quoteCurrency] as num).toDouble();
+        final now = DateTime.now();
+        final dateOnly = DateTime(now.year, now.month, now.day);
+
+        await cacheRate(ExchangeRatesCompanion.insert(
+          id: 'er-$baseCurrency-$quoteCurrency-${dateOnly.millisecondsSinceEpoch}',
+          baseCurrency: baseCurrency,
+          quoteCurrency: quoteCurrency,
+          rateDate: dateOnly,
+          rate: rateValue,
+        ));
+
+        return rateValue;
+      }
+    } catch (_) {
+      // Both failed. Silently swallow errors and return 1.0 as last resort.
     }
     return 1.0;
   }

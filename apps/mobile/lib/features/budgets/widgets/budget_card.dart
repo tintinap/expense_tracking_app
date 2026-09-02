@@ -19,8 +19,10 @@ class BudgetCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     Color progressColor = Colors.green;
-    if (progress.isOverBudget || progress.isCritical) {
+    if (progress.isOverBudget) {
       progressColor = Colors.red;
+    } else if (progress.isCritical) {
+      progressColor = Colors.redAccent.shade100;
     } else if (progress.isWarning) {
       progressColor = Colors.orange;
     }

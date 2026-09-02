@@ -2,22 +2,57 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale } from 'next-intl';
 import { useAuth } from '@/lib/auth/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
-  const t = useTranslations('login');
+  const locale = useLocale();
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleOAuthLogin = async (provider: 'google' | 'apple') => {
     setIsLoading(true);
+    setError(null);
+
+    const tokenFromEnv =
+      provider === 'google'
+        ? process.env.NEXT_PUBLIC_DEV_GOOGLE_ID_TOKEN
+        : process.env.NEXT_PUBLIC_DEV_APPLE_ID_TOKEN;
+    const emailFromEnv = process.env.NEXT_PUBLIC_DEV_AUTH_EMAIL;
+    const nameFromEnv = process.env.NEXT_PUBLIC_DEV_AUTH_NAME || 'DailySpend User';
+    const providerIdFromEnv = process.env.NEXT_PUBLIC_DEV_PROVIDER_ID || `${provider}-web`;
+
+    if (!tokenFromEnv || !emailFromEnv) {
+      setError(
+        `Missing dev auth env for ${provider}. Set NEXT_PUBLIC_DEV_${provider.toUpperCase()}_ID_TOKEN and NEXT_PUBLIC_DEV_AUTH_EMAIL.`,
+      );
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      await login(provider);
-      router.push('/dashboard');
+      if (provider === 'google') {
+        await login(provider, {
+          idToken: tokenFromEnv,
+          email: emailFromEnv,
+          displayName: nameFromEnv,
+          providerId: providerIdFromEnv,
+        });
+      } else {
+        await login(provider, {
+          identityToken: tokenFromEnv,
+          email: emailFromEnv,
+          displayName: nameFromEnv,
+          providerId: providerIdFromEnv,
+        });
+      }
+
+      router.push(`/${locale}/dashboard`);
     } catch (error) {
       console.error('Login failed', error);
+      setError('Authentication failed. Check API and OAuth env configuration.');
       setIsLoading(false);
     }
   };
@@ -49,6 +84,11 @@ export default function LoginPage() {
             Continue with Apple
           </button>
         </div>
+        {error && (
+          <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );

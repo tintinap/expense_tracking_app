@@ -2,86 +2,189 @@
 
 import { useEffect, useState } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { transactionsApi } from '@/lib/api-client';
+import { useAuth } from '@/lib/auth/AuthContext';
+
+type DashboardTransaction = {
+  id: string;
+  transactionType: string;
+  amountBase: number;
+  originalAmount: number;
+  originalCurrency: string;
+  transactionDate: string;
+  note?: string | null;
+  category?: { id: string; name: string } | null;
+};
+
+type DashboardSummary = {
+  totalSpent: number;
+  netIncome: number;
+  topCategory: string;
+  topCategoryAmount: number;
+};
+
+function formatMoney(value: number, currency = 'AUD') {
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function asNumber(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function buildSummary(data: DashboardTransaction[]): DashboardSummary {
+  const expenseTotal = data
+    .filter((tx) => tx.transactionType === 'expense')
+    .reduce((sum, tx) => sum + asNumber(tx.amountBase), 0);
+  const incomeTotal = data
+    .filter((tx) => tx.transactionType === 'currency_income')
+    .reduce((sum, tx) => sum + asNumber(tx.amountBase), 0);
+
+  const categoryTotals = data
+    .filter((tx) => tx.transactionType === 'expense')
+    .reduce<Record<string, number>>((acc, tx) => {
+      const category = tx.category?.name || 'Uncategorized';
+      acc[category] = (acc[category] || 0) + asNumber(tx.amountBase);
+      return acc;
+    }, {});
+
+  const sortedCategory = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0];
+
+  return {
+    totalSpent: expenseTotal,
+    netIncome: incomeTotal - expenseTotal,
+    topCategory: sortedCategory?.[0] || 'No expenses yet',
+    topCategoryAmount: sortedCategory?.[1] || 0,
+  };
+}
 
 export default function DashboardPage() {
-  const [balance, setBalance] = useState(0);
-  const [transactions, setTransactions] = useState([]);
+  const { token } = useAuth();
+  const [transactions, setTransactions] = useState<DashboardTransaction[]>([]);
+  const [summary, setSummary] = useState<DashboardSummary>({
+    totalSpent: 0,
+    netIncome: 0,
+    topCategory: 'No expenses yet',
+    topCategoryAmount: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // In a real scenario, we'd fetch this from the NestJS /transactions API
-    // using the token from the AuthContext. Mocking for now:
-    setBalance(5430.25);
-    setTransactions([
-      { id: 1, date: '2026-04-20', type: 'expense', amount: 45.0, currency: 'USD', category: 'Food' },
-      { id: 2, date: '2026-04-19', type: 'expense', amount: 120.0, currency: 'AUD', category: 'Transport' },
-      { id: 3, date: '2026-04-18', type: 'income', amount: 1500.0, currency: 'AUD', category: 'Salary' },
-    ]);
-  }, []);
+    if (!token) {
+      setTransactions([]);
+      setSummary({
+        totalSpent: 0,
+        netIncome: 0,
+        topCategory: 'No expenses yet',
+        topCategoryAmount: 0,
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    const loadDashboard = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const result = await transactionsApi.list(token, { page: 1, limit: 50 });
+        const nextTransactions = (result.data || []) as DashboardTransaction[];
+        setTransactions(nextTransactions);
+        setSummary(buildSummary(nextTransactions));
+      } catch (err) {
+        console.error('Failed to load dashboard transactions', err);
+        setError('Unable to load dashboard data from API.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadDashboard();
+  }, [token]);
 
   return (
     <ProtectedRoute>
-      <div className="p-8 max-w-5xl mx-auto space-y-6">
-        <header className="mb-8 flex justify-between items-center">
+      <div className="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6 sm:py-8">
+        <header className="mb-2 flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-gray-500">Your financial overview</p>
+            <p className="text-gray-500">Card-first financial snapshot from your live transactions</p>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-1 border rounded-xl p-6 bg-white shadow-sm border-gray-100 flex flex-col justify-center">
-            <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Total Balance</h2>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-4xl font-extrabold text-gray-900">${balance.toFixed(2)}</span>
-              <span className="text-gray-400 font-medium">AUD</span>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <div className="bg-green-50 text-green-700 px-2 py-1 rounded-md text-xs font-semibold">+ $1.5k this month</div>
-            </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <section className="rounded-2xl border border-blue-100 bg-blue-50 p-5 shadow-sm">
+            <p className="text-sm font-medium text-blue-700">Total Spent</p>
+            <p className="mt-2 text-2xl font-bold text-blue-950">{formatMoney(summary.totalSpent)}</p>
+            <p className="mt-2 text-xs text-blue-700">{transactions.length} transactions (latest 50)</p>
+          </section>
+
+          <section className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
+            <p className="text-sm font-medium text-emerald-700">Net Income</p>
+            <p className="mt-2 text-2xl font-bold text-emerald-950">{formatMoney(summary.netIncome)}</p>
+            <p className="mt-2 text-xs text-emerald-700">Income minus expense in base currency</p>
+          </section>
+
+          <section className="rounded-2xl border border-violet-100 bg-violet-50 p-5 shadow-sm sm:col-span-2">
+            <p className="text-sm font-medium text-violet-700">Top Category</p>
+            <p className="mt-2 text-2xl font-bold text-violet-950">{summary.topCategory}</p>
+            <p className="mt-2 text-xs text-violet-700">{formatMoney(summary.topCategoryAmount)} spent</p>
+          </section>
+        </div>
+
+        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div className="border-b border-gray-100 px-5 py-4">
+            <h2 className="font-semibold text-gray-900">Recent Transactions</h2>
           </div>
 
-          <div className="md:col-span-2 border rounded-xl p-6 bg-white shadow-sm border-gray-100 min-h-[250px] relative flex flex-col">
-            <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-4">Activity (Line Chart Placeholder)</h2>
-            <div className="flex-1 flex items-end justify-between px-2 pb-2">
-              {/* Mock Bar/Line visual */}
-              {[40, 70, 45, 90, 65, 100, 85].map((h, i) => (
-                <div key={i} className="flex flex-col items-center gap-2">
-                   <div 
-                     className="w-10 bg-indigo-500 rounded-t-sm opacity-80"
-                     style={{ height: `${h}%` }}
-                   ></div>
-                   <span className="text-xs text-gray-400">Apr {15 + i}</span>
-                </div>
+          {isLoading && (
+            <div className="space-y-3 px-5 py-4">
+              {[0, 1, 2].map((item) => (
+                <div key={item} className="h-14 animate-pulse rounded-xl bg-gray-100" />
               ))}
             </div>
-          </div>
-        </div>
+          )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-           <div className="border rounded-xl bg-white shadow-sm border-gray-100 overflow-hidden">
-             <div className="px-6 py-4 border-b border-gray-100">
-               <h2 className="font-semibold text-gray-800">Recent Transactions</h2>
-             </div>
-             <div className="divide-y divide-gray-50">
-               {transactions.map((tx: any) => (
-                 <div key={tx.id} className="p-4 px-6 flex justify-between items-center hover:bg-gray-50 transition-colors">
-                   <div className="flex items-center gap-3">
-                     <div className={`p-2 rounded-full ${tx.type === 'income' ? 'bg-green-100' : 'bg-red-100'}`}>
-                       <span className="text-xl">💰</span>
-                     </div>
-                     <div>
-                       <p className="font-medium text-gray-900">{tx.category}</p>
-                       <p className="text-xs text-gray-500">{tx.date}</p>
-                     </div>
-                   </div>
-                   <div className={`font-semibold ${tx.type === 'income' ? 'text-green-600' : 'text-gray-900'}`}>
-                     {tx.type === 'income' ? '+' : '-'}${tx.amount.toFixed(2)} {tx.currency}
-                   </div>
-                 </div>
-               ))}
-             </div>
-           </div>
-        </div>
+          {!isLoading && error && (
+            <div className="px-5 py-8 text-center text-sm text-red-600">{error}</div>
+          )}
+
+          {!isLoading && !error && transactions.length === 0 && (
+            <div className="px-5 py-8 text-center text-sm text-gray-500">
+              No transactions yet. Add your first expense to populate the dashboard.
+            </div>
+          )}
+
+          {!isLoading && !error && transactions.length > 0 && (
+            <div className="divide-y divide-gray-100">
+              {transactions.slice(0, 8).map((tx) => {
+                const isIncome = tx.transactionType === 'currency_income';
+                const amount = asNumber(tx.originalAmount) || asNumber(tx.amountBase);
+
+                return (
+                  <div key={tx.id} className="flex items-center justify-between px-5 py-4 transition-colors hover:bg-gray-50">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-gray-900">
+                        {tx.category?.name || 'Uncategorized'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(tx.transactionDate).toLocaleDateString('en-AU')} - {tx.note || tx.transactionType}
+                      </p>
+                    </div>
+                    <p className={`ml-4 shrink-0 text-sm font-semibold ${isIncome ? 'text-emerald-700' : 'text-gray-900'}`}>
+                      {isIncome ? '+' : '-'}
+                      {formatMoney(amount, tx.originalCurrency || 'AUD')}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
     </ProtectedRoute>
   );

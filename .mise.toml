@@ -36,7 +36,7 @@ run = "pnpm run start:dev"
 [tasks.dev-web]
 description = "Start Next.js web only (port 3001)"
 dir = "apps/web"
-run = "pnpm run dev -- --port 3001"
+run = "pnpm exec next dev --port 3001"
 
 [tasks.dev-mobile]
 description = "Start Flutter mobile app (default device)"

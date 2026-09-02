@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
+import 'package:drift/drift.dart' as drift;
+import 'dart:convert';
 
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
@@ -26,6 +29,13 @@ class CurrencyDetailScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('$currency Wallet'),
+        actions: [
+          IconButton(
+            tooltip: 'Manual balance adjustment',
+            icon: const Icon(Icons.tune),
+            onPressed: () => _showAdjustmentDialog(context, ref),
+          ),
+        ],
       ),
       body: SlidableAutoCloseBehavior(
         child: CustomScrollView(
@@ -144,6 +154,93 @@ class CurrencyDetailScreen extends ConsumerWidget {
         ],
       ),
       ),
+    );
+  }
+
+  Future<void> _showAdjustmentDialog(BuildContext context, WidgetRef ref) async {
+    final amountCtrl = TextEditingController();
+    final noteCtrl = TextEditingController(text: 'balance_adjustment');
+    final isIncome = ValueNotifier<bool>(true);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Manual balance adjustment'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ValueListenableBuilder<bool>(
+              valueListenable: isIncome,
+              builder: (_, value, __) => SwitchListTile(
+                value: value,
+                onChanged: (v) => isIncome.value = v,
+                title: Text(value ? 'Increase balance' : 'Decrease balance'),
+              ),
+            ),
+            TextField(
+              controller: amountCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: 'Amount ($currency)'),
+            ),
+            TextField(
+              controller: noteCtrl,
+              decoration: const InputDecoration(labelText: 'Note'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Apply')),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    final amount = double.tryParse(amountCtrl.text.trim());
+    if (amount == null || amount <= 0) return;
+
+    final db = ref.read(databaseProvider);
+    final now = DateTime.now();
+    final txId = const Uuid().v4();
+    final txType = isIncome.value ? 'currency_income' : 'expense';
+
+    await db.into(db.transactions).insert(
+      TransactionsCompanion.insert(
+        id: txId,
+        transactionType: txType,
+        amountBase: amount,
+        originalAmount: amount,
+        originalCurrency: currency,
+        exchangeRate: 1.0,
+        rateDate: now,
+        transactionDate: now,
+        note: drift.Value(noteCtrl.text.trim().isEmpty ? 'balance_adjustment' : noteCtrl.text.trim()),
+      ),
+    );
+
+    await db.addToSyncQueue(
+      id: const Uuid().v4(),
+      recordType: 'transaction',
+      recordId: txId,
+      operation: 'insert',
+      payload: jsonEncode({
+        'transactionType': txType,
+        'amountBase': amount,
+        'originalAmount': amount,
+        'originalCurrency': currency,
+        'exchangeRate': 1.0,
+        'rateDate': now.toIso8601String(),
+        'rateEstimated': false,
+        'rateSource': 'manual',
+        'exchangeEventId': null,
+        'categoryId': null,
+        'note': noteCtrl.text.trim().isEmpty ? 'balance_adjustment' : noteCtrl.text.trim(),
+        'sourceLabel': 'manual_adjustment',
+        'transactionDate': now.toIso8601String(),
+        'isRecurring': false,
+        'recurrenceType': null,
+        'updatedAt': now.toIso8601String(),
+      }),
     );
   }
 }

@@ -29,6 +29,12 @@ export class SheetsController {
     return { success: true };
   }
 
+  @Post('disconnect')
+  @ApiOperation({ summary: 'Disconnect Google Sheet sync for user (compat alias)' })
+  async disconnectAlias(@Req() req) {
+    return this.disconnect(req);
+  }
+
   @Get('status')
   @ApiOperation({ summary: 'Get Google Sheet sync status' })
   async status(@Req() req) {
@@ -38,9 +44,12 @@ export class SheetsController {
       select: { sheetsEnabled: true, sheetsSpreadsheetId: true }
     });
     
+    const connected = user?.sheetsEnabled ?? false;
+    const spreadsheetId = user?.sheetsSpreadsheetId ?? null;
     return {
-      connected: user?.sheetsEnabled ?? false,
-      spreadsheetId: user?.sheetsSpreadsheetId ?? null
+      connected,
+      enabled: connected,
+      spreadsheetId,
     };
   }
 }
